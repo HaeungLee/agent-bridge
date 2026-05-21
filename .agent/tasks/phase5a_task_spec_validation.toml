@@ -1,0 +1,59 @@
+schema_version = "task_spec.v0"
+task_id = "phase5a-task-spec-validation"
+phase = "Phase 5"
+slice = "Task Spec Validation"
+title = "Implement task_spec.v0 validation and rendering"
+owner = "commander"
+
+objective = """
+Add a narrow task_spec.v0 preflight layer. The bridge should validate a TOML task spec and render it into a deterministic Markdown task prompt that can be passed to the existing run lifecycle.
+"""
+
+allowed_files = [
+  "docs/task_spec_v0.md",
+  "src/agent_bridge/task_spec.py",
+  "src/agent_bridge/cli.py",
+  ".agent/tasks/phase5a_task_spec_validation.toml",
+  ".agent/tasks/phase5a_task_spec_validation.md",
+  "docs/process/20260521_process.md",
+  "roadmap.md",
+]
+
+forbidden_files = [
+  "agent_bridge_mvp.md",
+  ".git/**",
+  ".agent/runs/**",
+  "src/agent_bridge/runners/cli_adapter.py",
+  "src/agent_bridge/runners/mock_subprocess.py",
+]
+
+required_commands = [
+  "uv run agent-bridge task validate --spec .agent/tasks/phase5a_task_spec_validation.toml",
+  "uv run agent-bridge task render --spec .agent/tasks/phase5a_task_spec_validation.toml --out .agent/tasks/phase5a_task_spec_validation.md",
+  "uv run agent-bridge run --agent cli_smoke --task .agent/tasks/phase5a_task_spec_validation.md --workspace .",
+  "uv run agent-bridge doctor",
+]
+
+acceptance_criteria = [
+  "Valid task_spec.v0 TOML exits 0.",
+  "Rendered Markdown prompt is deterministic and includes all required sections.",
+  "The existing run command accepts the rendered Markdown task.",
+  "No OpenCode, nanoGPT, external API, worktree, or patch workflow is implemented.",
+]
+
+hard_rules = [
+  "Do not commit.",
+  "Do not implement the next phase.",
+  "Do not integrate OpenCode.",
+  "Do not call external APIs.",
+  "Do not add runtime dependencies.",
+]
+
+expected_report_sections = [
+  "Changed files",
+  "Commands run",
+  "Result",
+  "Risks",
+  "Open questions",
+  "Next recommended step",
+]

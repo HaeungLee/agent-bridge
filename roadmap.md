@@ -166,9 +166,9 @@ Before Phase 5 implementation, complete these cleanup gates:
 Milestones:
 
 - [ ] Ensure each run writes only to its own run directory.
-- [ ] Define `task_spec.v0` authoring and canonicalization flow.
-- [ ] Add `agent-bridge task validate` for canonical task specs.
-- [ ] Add preflight checks for allowed files, forbidden files, constraints, and verification commands.
+- [x] Define `task_spec.v0` authoring and canonicalization flow.
+- [x] Add `agent-bridge task validate` for canonical task specs.
+- [x] Add preflight checks for allowed files, forbidden files, constraints, and verification commands.
 - [ ] Add result checks for required artifacts, roadmap scope, process log updates, and forbidden file changes.
 - [ ] Add daily process rollup generator.
 - [ ] Add process file line-count rollover at 800 lines.
@@ -243,6 +243,6 @@ Next recommended step:
 
 ## Current Next Step
 
-Phase 5-A foundation is in progress. Latest-run stabilization is complete, and a local `cli_adapter` smoke runner now verifies the adapter request/response contract without invoking external coding agents.
+Phase 5-A foundation is in progress. Latest-run stabilization is complete, a local `cli_adapter` smoke runner verifies the adapter request/response contract, and `task_spec.v0` TOML specs can now be validated and rendered into Markdown prompts.
 
-Next step: Gate-review the `cli_adapter` foundation, then decide whether Phase 5-B should connect OpenCode/nanoGPT first or add `task_spec.v0` validation first.
+Next step: Gate-review `task_spec.v0`, then decide whether Phase 5-B should connect OpenCode/nanoGPT first or add result checks for actual changed files versus `allowed_files`.

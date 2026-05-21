@@ -433,6 +433,61 @@ def cmd_eval(args):
     print("==================================================")
     sys.exit(0)
 
+def cmd_task_validate(args):
+    """
+    Executes 'agent-bridge task validate --spec <spec.toml>'.
+    """
+    from agent_bridge.task_spec import load_task_spec, validate_task_spec
+
+    spec_path = Path(args.spec)
+    try:
+        result = validate_task_spec(load_task_spec(spec_path))
+    except Exception as e:
+        print(f"[FAIL] Task spec validation failed: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    spec = result.spec
+    print("==================================================")
+    print("Agent Bridge Task Spec Validation")
+    print("==================================================")
+    print(f"Spec    : {spec_path}")
+    print(f"Task ID : {spec.get('task_id')}")
+    print(f"Phase   : {spec.get('phase')}")
+    print(f"Slice   : {spec.get('slice')}")
+    print(f"Title   : {spec.get('title')}")
+    print(f"Allowed : {len(spec.get('allowed_files', []))} file patterns")
+    print(f"Forbidden: {len(spec.get('forbidden_files', []))} file patterns")
+    if result.warnings:
+        print("Warnings:")
+        for warning in result.warnings:
+            print(f"  - {warning}")
+    print("==================================================")
+    print("[OK] task_spec.v0 validation passed")
+    sys.exit(0)
+
+def cmd_task_render(args):
+    """
+    Executes 'agent-bridge task render --spec <spec.toml> --out <task.md>'.
+    """
+    from agent_bridge.task_spec import write_rendered_task
+
+    spec_path = Path(args.spec)
+    out_path = Path(args.out)
+    try:
+        write_rendered_task(spec_path, out_path)
+    except Exception as e:
+        print(f"[FAIL] Task spec render failed: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    print("==================================================")
+    print("Agent Bridge Task Spec Render")
+    print("==================================================")
+    print(f"Spec   : {spec_path}")
+    print(f"Output : {out_path}")
+    print("==================================================")
+    print("[OK] rendered task prompt written")
+    sys.exit(0)
+
 def main():
     parser = argparse.ArgumentParser(
         prog="agent-bridge",
@@ -469,6 +524,17 @@ def main():
     parser_eval.add_argument("--notes", help="Commander feedback/notes")
     parser_eval.add_argument("--interactive", action="store_true", help="Run in interactive mode with prompts")
     parser_eval.add_argument("--write-report-verdict", action="store_true", help="Write evaluation verdict back to decision_report.json")
+
+    # 6. task
+    parser_task = subparsers.add_parser("task", help="Validate and render task specs")
+    task_subparsers = parser_task.add_subparsers(dest="task_command", help="Task subcommand")
+
+    parser_task_validate = task_subparsers.add_parser("validate", help="Validate task_spec.v0 TOML")
+    parser_task_validate.add_argument("--spec", required=True, help="Path to task_spec.v0 TOML")
+
+    parser_task_render = task_subparsers.add_parser("render", help="Render task_spec.v0 TOML to Markdown")
+    parser_task_render.add_argument("--spec", required=True, help="Path to task_spec.v0 TOML")
+    parser_task_render.add_argument("--out", required=True, help="Path to output Markdown task")
     
     args = parser.parse_args()
     
@@ -482,6 +548,14 @@ def main():
         cmd_compare(args)
     elif args.command == "eval":
         cmd_eval(args)
+    elif args.command == "task":
+        if args.task_command == "validate":
+            cmd_task_validate(args)
+        elif args.task_command == "render":
+            cmd_task_render(args)
+        else:
+            parser_task.print_help()
+            sys.exit(0)
     else:
         parser.print_help()
         sys.exit(0)
