@@ -63,6 +63,8 @@ class CliAdapterRunner(Runner):
         self.env = dict(config.env)
 
     def run(self, task_path: Path, workspace_path: Path, timeout_seconds: int) -> RunnerResult:
+        # timeout_seconds is already in seconds (converted by caller).
+        # Use the larger of the caller-supplied value and the adapter's own config.
         timeout_ms = max(int(timeout_seconds * 1000), self.timeout_ms)
         task_prompt = task_path.read_text(encoding="utf-8")
         run_id = f"cli-{uuid.uuid4().hex[:8]}"

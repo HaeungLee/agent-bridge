@@ -202,7 +202,7 @@ def execute_mock_run(agent_name: str, task_path: Path, workspace_path: Path, roo
         else:
             adapter_config = load_cli_adapter_config(configs.get("runners", {}), adapter_id)
         runner = CliAdapterRunner(adapter_id=adapter_id, config=adapter_config)
-        res = runner.run(task_path, workspace_path, timeout_seconds=adapter_config.timeout_ms / 1000)
+        res = runner.run(task_path, workspace_path, timeout_seconds=int(adapter_config.timeout_ms / 1000))
 
         status_val = normalize_report_status(res.status)
         verdict_val = "NEEDS_DECISION" if status_val == "completed" else "BLOCKED"

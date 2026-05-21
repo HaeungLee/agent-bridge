@@ -14,15 +14,17 @@ SMOKE_TOKEN = "AGENT_BRIDGE_OPENCODE_SMOKE_OK"
 
 
 def main() -> int:
+    # Read stdin once and cache; _safe_request_id() must not re-read stdin.
+    raw = sys.stdin.buffer.read()
+    request_id = ""
     try:
-        request = json.loads(sys.stdin.buffer.read().decode("utf-8"))
-        request_id = request["request_id"]
+        request = json.loads(raw.decode("utf-8"))
+        request_id = request.get("request_id", "")
         _emit_event(request_id, "progress", "opencode readonly adapter started")
         result = _run_opencode(request)
         _emit_response(request_id, result)
         return 0
     except Exception as exc:
-        request_id = _safe_request_id()
         _emit_response(
             request_id,
             {
@@ -101,8 +103,11 @@ def _run_opencode(request: dict[str, Any]) -> dict[str, Any]:
     session_reused = bool(session_id)
     if observed_session_id and session_policy == "continue_named":
         _write_session_state(workspace, session_name, observed_session_id)
+    direct_smoke = os.environ.get("AGENT_BRIDGE_OPENCODE_DIRECT_SMOKE", "").strip().lower() in {"1", "true", "yes"}
     empty_output = not stdout.strip() and not stderr.strip()
-    missing_smoke_token = SMOKE_TOKEN not in text_output
+    # Smoke token check is only required in direct-smoke mode.
+    # In report/task mode, absence of the token is not an error.
+    missing_smoke_token = direct_smoke and (SMOKE_TOKEN not in text_output)
     ok = result.returncode == 0 and opencode_error == "" and not empty_output and not missing_smoke_token
     summary = _summarize_opencode_output(stdout, stderr, result.returncode, text_output)
     if opencode_error:
@@ -204,11 +209,8 @@ def _emit_response(request_id: str, result: dict[str, Any]) -> None:
     )
 
 
-def _safe_request_id() -> str:
-    try:
-        return json.loads(sys.stdin.buffer.read().decode("utf-8")).get("request_id", "")
-    except Exception:
-        return ""
+# Removed: _safe_request_id() was re-reading stdin which is always empty after main() reads it.
+# request_id is now captured in main() before the try block.
 
 
 def _first_filesystem_scope(constraints: dict[str, Any]) -> str:
