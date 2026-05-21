@@ -52,3 +52,13 @@ default_mode = "execute"
 max_cost_usd = 0.0
 output_contract = "adapter.v0.1"
 adapter_id = "cli_smoke"
+
+[agents.opencode_kimi_readonly]
+runner = "cli_adapter"
+provider = "nanogpt"
+model = "nano-gpt/moonshotai/kimi-k2.6"
+role = "read_only_smoke"
+default_mode = "report"
+max_cost_usd = 0.5
+output_contract = "adapter.v0.1"
+adapter_id = "opencode_kimi_readonly"

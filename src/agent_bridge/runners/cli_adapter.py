@@ -31,6 +31,26 @@ class CliAdapterConfig:
     env: dict[str, str] = field(default_factory=dict)
 
 
+def load_cli_adapter_config(runners_config: dict[str, Any], adapter_id: str) -> CliAdapterConfig:
+    runner_config = runners_config.get("runners", {}).get("cli_adapter", {})
+    adapters = runner_config.get("adapters", {})
+    adapter_config = adapters.get(adapter_id)
+    if not isinstance(adapter_config, dict):
+        raise ValueError(f"Missing config for cli_adapter adapter_id '{adapter_id}'")
+
+    command = adapter_config.get("command")
+    if not isinstance(command, str) or not command.strip():
+        raise ValueError(f"cli_adapter '{adapter_id}' must define a non-empty command")
+
+    return CliAdapterConfig(
+        command=command,
+        args=_string_list(adapter_config.get("args", []), f"{adapter_id}.args"),
+        allowlist=_string_list(adapter_config.get("allowlist", []), f"{adapter_id}.allowlist"),
+        timeout_ms=int(adapter_config.get("timeout_ms", 30_000)),
+        env=_string_dict(adapter_config.get("env", {}), f"{adapter_id}.env"),
+    )
+
+
 class CliAdapterRunner(Runner):
     def __init__(self, adapter_id: str, config: CliAdapterConfig):
         self.adapter_id = adapter_id
@@ -309,3 +329,25 @@ def make_local_smoke_config() -> CliAdapterConfig:
         allowlist=[Path(sys.executable).name, sys.executable],
         timeout_ms=30_000,
     )
+
+
+def _string_list(value: Any, field_name: str) -> list[str]:
+    if not isinstance(value, list):
+        raise ValueError(f"Field '{field_name}' must be a list")
+    result: list[str] = []
+    for index, item in enumerate(value):
+        if not isinstance(item, str) or not item.strip():
+            raise ValueError(f"Field '{field_name}' item {index} must be a non-empty string")
+        result.append(item)
+    return result
+
+
+def _string_dict(value: Any, field_name: str) -> dict[str, str]:
+    if not isinstance(value, dict):
+        raise ValueError(f"Field '{field_name}' must be a table")
+    result: dict[str, str] = {}
+    for key, item in value.items():
+        if not isinstance(key, str) or not isinstance(item, str):
+            raise ValueError(f"Field '{field_name}' must contain string keys and values")
+        result[key] = item
+    return result

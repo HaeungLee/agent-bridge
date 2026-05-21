@@ -1,0 +1,24 @@
+nano-gpt/deepseek/deepseek-v4-pro
+nano-gpt/deepseek/deepseek-v4-pro:thinking
+nano-gpt/deepseek/deepseek-v4-flash
+nano-gpt/deepseek/deepseek-v4-flash:thinking
+
+deepseek/deepseek-v4-pro
+deepseek/deepseek-v4-pro:thinking
+deepseek/deepseek-v4-flash
+deepseek/deepseek-v4-flash:thinking
+
+{
+  "model": "deepseek/deepseek-v4-flash",
+  "messages": [
+    {"role": "user", "content": "Say hello in one sentence."}
+  ]
+}
+
+{
+  "model": "deepseek/deepseek-v4-pro",
+  "messages": [
+    {"role": "user", "content": "Say hello in one sentence."}
+  ]
+}
+

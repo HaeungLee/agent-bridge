@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Optional, Any
 from agent_bridge.config import find_project_root, load_all_configs
 from agent_bridge.contracts import DecisionReport, TestSummary, validate_decision_report
-from agent_bridge.runners.cli_adapter import CliAdapterRunner, make_local_smoke_config
+from agent_bridge.runners.cli_adapter import CliAdapterRunner, load_cli_adapter_config, make_local_smoke_config
 from agent_bridge.runners.mock_subprocess import MockSubprocessRunner
 
 COMPLETED_MARKER = "completed.marker"
@@ -196,8 +196,12 @@ def execute_mock_run(agent_name: str, task_path: Path, workspace_path: Path, roo
         confidence_val = 0.8 if status_val == "completed" else 0.0
     elif runner_name == "cli_adapter":
         adapter_id = agent_info.get("adapter_id", agent_name)
-        runner = CliAdapterRunner(adapter_id=adapter_id, config=make_local_smoke_config())
-        res = runner.run(task_path, workspace_path, timeout_seconds=30)
+        if adapter_id == "cli_smoke":
+            adapter_config = make_local_smoke_config()
+        else:
+            adapter_config = load_cli_adapter_config(configs.get("runners", {}), adapter_id)
+        runner = CliAdapterRunner(adapter_id=adapter_id, config=adapter_config)
+        res = runner.run(task_path, workspace_path, timeout_seconds=adapter_config.timeout_ms / 1000)
 
         status_val = normalize_report_status(res.status)
         verdict_val = "NEEDS_DECISION" if status_val == "completed" else "BLOCKED"
@@ -206,11 +210,11 @@ def execute_mock_run(agent_name: str, task_path: Path, workspace_path: Path, roo
         runtime_sec = res.runtime_seconds
         stdout_val = res.stdout
         stderr_val = res.stderr
-        risks_list = ["Phase 5-A: Local CLI adapter contract smoke only. No external coding agent invoked."]
+        risks_list = ["Phase 5-B: CLI adapter smoke. External CLI may be invoked if configured."]
         if status_val != "completed":
-            risks_list.append("CLI adapter smoke did not complete successfully.")
-        open_questions_list = ["When should OpenCode be enabled as a real cli_adapter target?"]
-        next_action_val = "Review cli_adapter contract smoke before configuring OpenCode."
+            risks_list.append("CLI adapter did not complete successfully.")
+        open_questions_list = ["When should write-capable agent execution be enabled?"]
+        next_action_val = "Review CLI adapter smoke and result scope check before enabling write-capable adapters."
         confidence_val = 0.7 if status_val == "completed" else 0.0
     else:
         # Default blocked behavior for non-mock runners

@@ -243,6 +243,6 @@ Next recommended step:
 
 ## Current Next Step
 
-Phase 5-A foundation is in progress. Latest-run stabilization is complete, a local `cli_adapter` smoke runner verifies the adapter request/response contract, and `task_spec.v0` TOML specs can now be validated, rendered into Markdown prompts, and checked against changed files after execution.
+Phase 5-B OpenCode/nanoGPT readonly smoke is in progress. The bridge can invoke OpenCode through a `cli_adapter` shim, capture raw output into run artifacts, map OpenCode error frames to failed reports, and enforce task-spec file scope after execution.
 
-Next step: Gate-review the task spec result gate, then decide whether Phase 5-B should connect OpenCode/nanoGPT first or add stronger result checks for required artifacts, roadmap scope, and process log updates.
+Current blocker: OpenCode/nanoGPT invocation works, but the readonly smoke has not produced the required `AGENT_BRIDGE_OPENCODE_SMOKE_OK` token through the wrapper path. Next step: decide whether to tune the OpenCode prompt/agent path further or move to a thinner direct command smoke before enabling write-capable adapters.
