@@ -46,3 +46,18 @@ AGENT_BRIDGE_OPENCODE_SESSION_POLICY = "new"
 AGENT_BRIDGE_OPENCODE_SESSION_NAME = "opencode_bridge_readonly_report"
 AGENT_BRIDGE_OPENCODE_DIRECT_SMOKE = "false"
 AGENT_BRIDGE_OPENCODE_COMPACT_REPORT = "true"
+
+[runners.cli_adapter.adapters.antigravity_smoke]
+command = "python"
+args = ["-m", "agent_bridge.adapters.antigravity_smoke"]
+allowlist = ["python", "python.exe"]
+timeout_ms = 60000
+
+[runners.cli_adapter.adapters.antigravity_smoke.env]
+PYTHONPATH = "src"
+AGENT_BRIDGE_ANTIGRAVITY_COMMAND = "C:\\Users\\Harry\\AppData\\Local\\agy\\bin\\agy.exe"
+AGENT_BRIDGE_ANTIGRAVITY_TIMEOUT_MS = "60000"
+AGENT_BRIDGE_ANTIGRAVITY_DIRECT_SMOKE = "true"
+AGENT_BRIDGE_ANTIGRAVITY_SESSION_POLICY = "continue_named"
+AGENT_BRIDGE_ANTIGRAVITY_SESSION_NAME = "antigravity_bridge_smoke_agent"
+

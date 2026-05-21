@@ -72,3 +72,14 @@ default_mode = "report"
 max_cost_usd = 0.75
 output_contract = "adapter.v0.1"
 adapter_id = "opencode_kimi_report"
+
+[agents.antigravity_smoke]
+runner = "cli_adapter"
+provider = "local"
+model = "antigravity-smoke"
+role = "smoke"
+default_mode = "report"
+max_cost_usd = 0.5
+output_contract = "adapter.v0.1"
+adapter_id = "antigravity_smoke"
+

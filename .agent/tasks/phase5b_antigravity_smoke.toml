@@ -1,0 +1,67 @@
+schema_version = "task_spec.v0"
+task_id = "phase5b-antigravity-smoke"
+phase = "Phase 5"
+slice = "Antigravity CLI Adapter Smoke"
+title = "Run Antigravity read-only adapter smoke"
+owner = "commander"
+
+objective = """
+Verify that agent-bridge can invoke Antigravity through a cli_adapter shim in read-only mode, capture raw stdout/stderr, produce normalized run artifacts, and verify model connectivity via a hello message.
+"""
+
+allowed_files = [
+  "config/agents.toml",
+  "config/runners.toml",
+  ".gitignore",
+  "src/agent_bridge/cli.py",
+  "src/agent_bridge/runs.py",
+  "src/agent_bridge/runners/base.py",
+  "src/agent_bridge/runners/cli_adapter.py",
+  "src/agent_bridge/adapters/__init__.py",
+  "src/agent_bridge/adapters/antigravity_smoke.py",
+  ".agent/tasks/phase5b_antigravity_smoke.toml",
+  ".agent/tasks/phase5b_antigravity_smoke.md",
+  "docs/process/20260521_process.md",
+  "roadmap.md",
+]
+
+forbidden_files = [
+  "agent_bridge_mvp.md",
+  ".git/**",
+  ".agent/runs/**",
+  ".agent/metrics/**",
+  ".agent/sessions/*.json",
+]
+
+required_commands = [
+  "uv run agent-bridge task validate --spec .agent/tasks/phase5b_antigravity_smoke.toml",
+  "uv run agent-bridge task render --spec .agent/tasks/phase5b_antigravity_smoke.toml --out .agent/tasks/phase5b_antigravity_smoke.md",
+  "uv run agent-bridge run --agent antigravity_smoke --task .agent/tasks/phase5b_antigravity_smoke.md --workspace .",
+  "uv run agent-bridge summarize --run latest",
+  "uv run agent-bridge task check-result --spec .agent/tasks/phase5b_antigravity_smoke.toml --workspace .",
+  "uv run agent-bridge doctor",
+]
+
+acceptance_criteria = [
+  "Antigravity is invoked through cli_adapter using shell=False.",
+  "The hello prompt is delivered to the adapter and then to Antigravity.",
+  "Successful smoke requires Antigravity text output containing AGENT_BRIDGE_ANTIGRAVITY_SMOKE_OK.",
+  "Run artifacts include decision_report.json, raw/stdout.txt, raw/stderr.txt, and completed.marker.",
+  "The adapter remains read-only and does not intentionally modify repository files.",
+]
+
+hard_rules = [
+  "Do not commit.",
+  "Do not implement the next phase.",
+  "Do not enable write-capable Antigravity execution.",
+  "Do not add runtime dependencies.",
+]
+
+expected_report_sections = [
+  "Changed files",
+  "Commands run",
+  "Result",
+  "Risks",
+  "Open questions",
+  "Next recommended step",
+]
