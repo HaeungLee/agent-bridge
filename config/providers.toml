@@ -1,0 +1,9 @@
+# Provider configurations for Agent Bridge
+
+[providers.nanogpt]
+api_base = "https://api.nano-gpt.com/v1"
+auth_env_var = "NANOGPT_API_KEY"
+
+[providers.xai]
+api_base = "https://api.x.ai/v1"
+auth_env_var = "XAI_API_KEY"

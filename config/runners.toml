@@ -1,0 +1,12 @@
+# Runner configurations for Agent Bridge
+
+[runners.opencode]
+type = "subprocess"
+command = "opencode"
+
+[runners.raw_openai]
+type = "api"
+
+[runners.mock_subprocess]
+type = "subprocess"
+command = "python"

@@ -1,0 +1,70 @@
+docs/process/YYYYMMDD_process.md로 진행상태 파악
+roadmap.md 체크박스가 과하게 올라갔는지 확인
+실제 변경 파일 diff/핵심 코드 확인
+uv run agent-bridge doctor
+해당 phase smoke command 실행
+실패 케이스 1-2개만 찔러보기
+
+1회 오류: Gemini에게 좁은 수정 지시
+2회 같은 유형 오류: 내가 직접 fix
+과잉구현 징후: 즉시 scope를 더 좁힘
+“동작 확인 완료” 주장: 항상 내가 smoke command로 재검증
+
+
+## agent 전달구조
+
+Codex commander
+  -> task spec 생성
+  -> agent-bridge validate
+  -> selected agent 실행
+  -> result artifacts 생성
+  -> validator/reviewer pass
+  -> Codex 최종 판단
+
+validation 부관은 필요합니다
+
+나는 최소 2종류를 추천합니다.
+
+1. Preflight Validator
+작업 시작 전에 task spec이 위험한지 검사합니다.
+
+검사 예:
+
+forbidden file을 allowed file에 같이 넣었는가
+agent_bridge_mvp.md 수정 허용했는가
+shell=True 허용했는가
+외부 API 호출이 금지 phase에서 열려 있는가
+verification command가 있는가
+expected artifact가 있는가
+max scope가 너무 넓은가
+2. Result Validator
+작업 후 결과물을 검사합니다.
+
+검사 예:
+
+허용 파일 외 변경이 있는가
+금지 파일이 바뀌었는가
+required artifacts가 생성됐는가
+doctor가 통과했는가
+decision_report schema가 맞는가
+process log가 append됐는가
+roadmap에서 후속 phase까지 과하게 체크했는가
+raw logs에 secret이 찍혔는가
+
+Commander: Codex/GPT-5.5
+Worker: Gemini/Kimi/GLM/DeepSeek
+Validator: deterministic Python checks
+Reviewer: Codex or GLM, 필요 시
+
+implementer:
+  Gemini / Kimi / DeepSeek
+
+reviewer:
+  GLM / Opus / Codex light review
+
+validator:
+  deterministic bridge checks
+
+commander:
+  Codex / Moonlight main brain
+

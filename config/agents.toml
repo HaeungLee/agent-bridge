@@ -1,0 +1,44 @@
+[agents.glm_review]
+runner = "opencode"
+provider = "nanogpt"
+model = "glm-5.2"
+role = "code_review"
+default_mode = "review"
+max_cost_usd = 1.0
+output_contract = "review_v1"
+
+[agents.kimi_impl]
+runner = "opencode"
+provider = "nanogpt"
+model = "kimi-k2.6"
+role = "implementation"
+default_mode = "patch"
+max_cost_usd = 2.0
+output_contract = "patch_v1"
+
+[agents.deepseek_investigate]
+runner = "opencode"
+provider = "nanogpt"
+model = "deepseek-v4"
+role = "bug_investigation"
+default_mode = "report"
+max_cost_usd = 1.5
+output_contract = "investigation_v1"
+
+[agents.grok_arch]
+runner = "raw_openai"
+provider = "xai"
+model = "grok"
+role = "architecture_critique"
+default_mode = "report"
+max_cost_usd = 1.5
+output_contract = "critique_v1"
+
+[agents.mock_impl]
+runner = "mock_subprocess"
+provider = "local"
+model = "mock"
+role = "implementation"
+default_mode = "mock"
+max_cost_usd = 0.0
+output_contract = "patch_v1"

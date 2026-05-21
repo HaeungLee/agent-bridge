@@ -1,0 +1,14 @@
+[project]
+name = "agent-bridge"
+version = "0.1.0"
+description = "A CLI-first control plane for agent delegation"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
+
+[project.scripts]
+agent-bridge = "agent_bridge.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
