@@ -29,3 +29,20 @@ AGENT_BRIDGE_OPENCODE_TIMEOUT_MS = "120000"
 AGENT_BRIDGE_OPENCODE_SESSION_POLICY = "continue_named"
 AGENT_BRIDGE_OPENCODE_SESSION_NAME = "opencode_bridge_smoke_agent"
 AGENT_BRIDGE_OPENCODE_DIRECT_SMOKE = "true"
+
+[runners.cli_adapter.adapters.opencode_kimi_report]
+command = "python"
+args = ["-m", "agent_bridge.adapters.opencode_readonly"]
+allowlist = ["python", "python.exe"]
+timeout_ms = 120000
+
+[runners.cli_adapter.adapters.opencode_kimi_report.env]
+PYTHONPATH = "src"
+AGENT_BRIDGE_OPENCODE_MODEL = "nano-gpt/moonshotai/kimi-k2.6"
+AGENT_BRIDGE_OPENCODE_AGENT = "agents/bridge-readonly-report"
+AGENT_BRIDGE_OPENCODE_PURE = "true"
+AGENT_BRIDGE_OPENCODE_TIMEOUT_MS = "120000"
+AGENT_BRIDGE_OPENCODE_SESSION_POLICY = "new"
+AGENT_BRIDGE_OPENCODE_SESSION_NAME = "opencode_bridge_readonly_report"
+AGENT_BRIDGE_OPENCODE_DIRECT_SMOKE = "false"
+AGENT_BRIDGE_OPENCODE_COMPACT_REPORT = "true"

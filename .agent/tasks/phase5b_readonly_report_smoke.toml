@@ -1,0 +1,62 @@
+schema_version = "task_spec.v0"
+task_id = "phase5b-readonly-report-smoke"
+phase = "Phase 5"
+slice = "OpenCode Readonly Report"
+title = "Run a small read-only repository report through OpenCode"
+owner = "commander"
+
+objective = """
+Verify that the dedicated OpenCode readonly report agent can inspect a small, explicit repository scope and return a compact factual report without modifying files.
+"""
+
+allowed_files = [
+  "config/agents.toml",
+  "config/runners.toml",
+  "src/agent_bridge/adapters/opencode_readonly.py",
+  ".opencode/agent/agents/bridge-readonly-report.md",
+  ".agent/tasks/phase5b_readonly_report_smoke.toml",
+  ".agent/tasks/phase5b_readonly_report_smoke.md",
+  "docs/process/20260521_process.md",
+  "roadmap.md",
+]
+
+forbidden_files = [
+  "agent_bridge_mvp.md",
+  ".git/**",
+  ".agent/runs/**",
+  ".agent/metrics/**",
+  ".agent/sessions/*.json",
+]
+
+required_commands = [
+  "uv run agent-bridge task validate --spec .agent/tasks/phase5b_readonly_report_smoke.toml",
+  "uv run agent-bridge task render --spec .agent/tasks/phase5b_readonly_report_smoke.toml --out .agent/tasks/phase5b_readonly_report_smoke.md",
+  "uv run agent-bridge run --agent opencode_kimi_report --task .agent/tasks/phase5b_readonly_report_smoke.md --workspace .",
+  "uv run agent-bridge summarize --run latest",
+  "uv run agent-bridge task check-result --spec .agent/tasks/phase5b_readonly_report_smoke.toml --workspace .",
+]
+
+acceptance_criteria = [
+  "OpenCode is invoked with --pure and agents/bridge-readonly-report.",
+  "The run completes with normalized artifacts.",
+  "The agent produces a compact factual report about OpenCode-related config in config/agents.toml and config/runners.toml.",
+  "No repository files are modified by the OpenCode report run.",
+  "Session metadata is recorded in metrics.json.",
+]
+
+hard_rules = [
+  "Do not commit.",
+  "Do not implement the next phase.",
+  "Do not enable write-capable OpenCode execution.",
+  "Do not modify files during the OpenCode report run.",
+  "Do not add runtime dependencies.",
+]
+
+expected_report_sections = [
+  "Changed files",
+  "Commands run",
+  "Result",
+  "Risks",
+  "Open questions",
+  "Next recommended step",
+]

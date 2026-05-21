@@ -145,11 +145,56 @@ def _run_opencode(request: dict[str, Any]) -> dict[str, Any]:
 
 
 def _build_message(task_prompt: str, has_session: bool) -> str:
-    if os.environ.get("AGENT_BRIDGE_OPENCODE_DIRECT_SMOKE", "").strip().lower() in {"1", "true", "yes"}:
+    if _truthy_env("AGENT_BRIDGE_OPENCODE_DIRECT_SMOKE"):
         if has_session:
             return "What exact smoke token were you asked to remember in the previous turn? Reply with only that token."
         return f"Remember this smoke token for the next turn: {SMOKE_TOKEN}. Reply with exactly: {SMOKE_TOKEN}."
+    if _truthy_env("AGENT_BRIDGE_OPENCODE_COMPACT_REPORT"):
+        return _compact_report_message(task_prompt)
     return _readonly_message(task_prompt)
+
+
+def _truthy_env(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in {"1", "true", "yes"}
+
+
+def _compact_report_message(task_prompt: str) -> str:
+    files = _extract_rendered_list(task_prompt, "Allowed Files")
+    config_files = [path for path in files if path in {"config/agents.toml", "config/runners.toml"}]
+    inspect_files = config_files or files[:3]
+    inspect_text = ", ".join(inspect_files) if inspect_files else "the rendered task's explicit allowed files"
+    return "\n".join(
+        [
+            "Read-only repository report.",
+            "Do not modify files or create files.",
+            "Use only read/grep/glob style inspection if tool use is needed.",
+            f"Inspect only: {inspect_text}.",
+            "Report factual findings in 6 bullets.",
+            "Focus on the OpenCode/nanoGPT bridge agent and runner configuration.",
+        ]
+    )
+
+
+def _extract_rendered_list(task_prompt: str, heading: str) -> list[str]:
+    lines = task_prompt.replace("\r\n", "\n").splitlines()
+    marker = f"## {heading}"
+    items: list[str] = []
+    in_section = False
+    for line in lines:
+        stripped = line.strip()
+        if stripped == marker:
+            in_section = True
+            continue
+        if in_section and stripped.startswith("## "):
+            break
+        if not in_section or not stripped.startswith("- "):
+            continue
+        value = stripped[2:].strip()
+        if value.startswith("`") and value.endswith("`") and len(value) >= 2:
+            value = value[1:-1]
+        if value:
+            items.append(value)
+    return items
 
 
 def _readonly_message(task_prompt: str) -> str:
