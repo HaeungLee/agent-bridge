@@ -58,6 +58,7 @@ def cmd_doctor(args):
         Path(".agent") / "runs",
         Path(".agent") / "reports",
         Path(".agent") / "metrics",
+        Path(".agent") / "sessions",
     ]
     
     print("[*] Required Directories:")

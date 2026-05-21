@@ -95,7 +95,7 @@ def setup_agent_directories(root_path: Optional[Path] = None) -> None:
         root_path = find_project_root()
         
     agent_dir = root_path / ".agent"
-    for subdir in ["tasks", "runs", "reports", "metrics"]:
+    for subdir in ["tasks", "runs", "reports", "metrics", "sessions"]:
         os.makedirs(agent_dir / subdir, exist_ok=True)
 
 def execute_mock_run(agent_name: str, task_path: Path, workspace_path: Path, root_path: Optional[Path] = None) -> str:
@@ -186,6 +186,7 @@ def execute_mock_run(agent_name: str, task_path: Path, workspace_path: Path, roo
         runtime_sec = res.runtime_seconds
         stdout_val = res.stdout
         stderr_val = res.stderr
+        metadata_val = res.metadata or {}
         
         risks_list = ["Phase 3: Execution under safe local mock_subprocess. No external coding agent invoked."]
         if status_val == "timeout":
@@ -210,6 +211,7 @@ def execute_mock_run(agent_name: str, task_path: Path, workspace_path: Path, roo
         runtime_sec = res.runtime_seconds
         stdout_val = res.stdout
         stderr_val = res.stderr
+        metadata_val = res.metadata or {}
         risks_list = ["Phase 5-B: CLI adapter smoke. External CLI may be invoked if configured."]
         if status_val != "completed":
             risks_list.append("CLI adapter did not complete successfully.")
@@ -225,6 +227,7 @@ def execute_mock_run(agent_name: str, task_path: Path, workspace_path: Path, roo
         runtime_sec = 0.0
         stdout_val = "This run is blocked: non-mock runner configuration detected.\n"
         stderr_val = "Subprocess not executed: runner blocked as intended.\n"
+        metadata_val = {}
         risks_list = ["The selected agent uses a runner that is currently blocked or not integrated in this phase."]
         open_questions_list = ["When will the integrated runner be enabled for production workflows?"]
         next_action_val = "Configure the agent to use a supported runner or implement the corresponding runner adapter."
@@ -333,6 +336,10 @@ Verify that the `agent-bridge run` CLI life cycle successfully executes, perform
         "estimated_cost_usd": 0.0,
         "tokens_in": None,
         "tokens_out": None,
+        "session_id": metadata_val.get("session_id"),
+        "session_reused": metadata_val.get("session_reused"),
+        "session_policy": metadata_val.get("session_policy"),
+        "session_name": metadata_val.get("session_name"),
         "commander_verdict": None,
         "user_verdict": None
     }
@@ -370,6 +377,7 @@ Verify that the `agent-bridge run` CLI life cycle successfully executes, perform
         "completed_at": datetime.datetime.now().isoformat(),
         "status": report.status,
         "verdict": report.verdict,
+        "session_id": metadata_val.get("session_id"),
     }
     write_json(run_dir / COMPLETED_MARKER, marker_content)
     

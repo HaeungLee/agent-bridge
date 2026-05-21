@@ -91,6 +91,7 @@ class CliAdapterRunner(Runner):
             _events, response, stdout, stderr, exit_code = self.invoke(request, timeout_ms)
             elapsed = time.time() - started
             data = response.get("data") or {}
+            response_metrics = response.get("metrics") or {}
             run_status = data.get("run_status", "completed" if response.get("ok") else "failed")
             if run_status not in ALLOWED_RUN_STATUS:
                 run_status = "failed"
@@ -107,6 +108,14 @@ class CliAdapterRunner(Runner):
                 summary=summary,
                 commands_run=[command_display],
                 runtime_seconds=round(elapsed, 4),
+                metadata={
+                    "adapter_response_metrics": response_metrics,
+                    "adapter_artifacts": data.get("artifacts", []),
+                    "session_id": response_metrics.get("session_id"),
+                    "session_reused": response_metrics.get("session_reused"),
+                    "session_policy": response_metrics.get("session_policy"),
+                    "session_name": response_metrics.get("session_name"),
+                },
             )
         except subprocess.TimeoutExpired as exc:
             elapsed = time.time() - started
@@ -120,6 +129,7 @@ class CliAdapterRunner(Runner):
                 summary=message,
                 commands_run=[command_display],
                 runtime_seconds=round(elapsed, 4),
+                metadata={"session_id": None},
             )
         except Exception as exc:
             elapsed = time.time() - started
@@ -131,6 +141,7 @@ class CliAdapterRunner(Runner):
                 summary=f"CLI adapter failed: {exc}",
                 commands_run=[command_display],
                 runtime_seconds=round(elapsed, 4),
+                metadata={"session_id": None},
             )
 
     def invoke(self, request_envelope: dict[str, Any], timeout_ms: int) -> tuple[list[dict], dict, str, str, int]:

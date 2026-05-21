@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, List, Optional
 
 @dataclass
 class RunnerResult:
@@ -11,6 +11,7 @@ class RunnerResult:
     summary: str
     commands_run: List[str]
     runtime_seconds: float
+    metadata: dict[str, Any] | None = None
 
 class Runner:
     def run(self, task_path: Path, workspace_path: Path, timeout_seconds: int) -> RunnerResult:

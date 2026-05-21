@@ -55,8 +55,12 @@ def _run_opencode(request: dict[str, Any]) -> dict[str, Any]:
 
     agent = os.environ.get("AGENT_BRIDGE_OPENCODE_AGENT", "").strip()
     timeout_ms = int(os.environ.get("AGENT_BRIDGE_OPENCODE_TIMEOUT_MS", "120000"))
+    session_policy = os.environ.get("AGENT_BRIDGE_OPENCODE_SESSION_POLICY", "new").strip() or "new"
+    session_name = os.environ.get("AGENT_BRIDGE_OPENCODE_SESSION_NAME", "").strip() or "default"
+    explicit_session_id = os.environ.get("AGENT_BRIDGE_OPENCODE_SESSION_ID", "").strip()
+    session_id = _resolve_session_id(workspace, session_policy, session_name, explicit_session_id)
     task_prompt = str(payload.get("task_prompt") or "")
-    message = _readonly_message(task_prompt)
+    message = _build_message(task_prompt, bool(session_id))
 
     cmd = [
         "opencode",
@@ -70,6 +74,8 @@ def _run_opencode(request: dict[str, Any]) -> dict[str, Any]:
     ]
     if agent:
         cmd.extend(["--agent", agent])
+    if session_id:
+        cmd.extend(["--session", session_id])
     cmd.append(message)
 
     started = time.time()
@@ -86,6 +92,10 @@ def _run_opencode(request: dict[str, Any]) -> dict[str, Any]:
 
     opencode_error = _extract_opencode_error(stdout)
     text_output = _extract_opencode_text(stdout)
+    observed_session_id = _extract_session_id(stdout) or session_id
+    session_reused = bool(session_id)
+    if observed_session_id and session_policy == "continue_named":
+        _write_session_state(workspace, session_name, observed_session_id)
     empty_output = not stdout.strip() and not stderr.strip()
     missing_smoke_token = SMOKE_TOKEN not in text_output
     ok = result.returncode == 0 and opencode_error == "" and not empty_output and not missing_smoke_token
@@ -115,9 +125,21 @@ def _run_opencode(request: dict[str, Any]) -> dict[str, Any]:
             "cost_usd": 0.0,
             "tokens_in": None,
             "tokens_out": None,
+            "session_id": observed_session_id,
+            "session_reused": session_reused,
+            "session_policy": session_policy,
+            "session_name": session_name,
         },
         "error": None if ok else {"code": "opencode_failed", "message": opencode_error or stderr[-STDERR_PREVIEW_CHARS:] or summary},
     }
+
+
+def _build_message(task_prompt: str, has_session: bool) -> str:
+    if os.environ.get("AGENT_BRIDGE_OPENCODE_DIRECT_SMOKE", "").strip().lower() in {"1", "true", "yes"}:
+        if has_session:
+            return "What exact smoke token were you asked to remember in the previous turn? Reply with only that token."
+        return f"Remember this smoke token for the next turn: {SMOKE_TOKEN}. Reply with exactly: {SMOKE_TOKEN}."
+    return _readonly_message(task_prompt)
 
 
 def _readonly_message(task_prompt: str) -> str:
@@ -191,6 +213,47 @@ def _first_filesystem_scope(constraints: dict[str, Any]) -> str:
     return ""
 
 
+def _resolve_session_id(workspace: Path, policy: str, name: str, explicit_session_id: str) -> str:
+    if policy == "new":
+        return ""
+    if policy == "explicit":
+        if not explicit_session_id:
+            raise ValueError("AGENT_BRIDGE_OPENCODE_SESSION_ID is required when session policy is explicit")
+        return explicit_session_id
+    if policy == "continue_named":
+        state = _read_session_state(workspace, name)
+        return str(state.get("session_id", "")).strip()
+    raise ValueError(f"Unsupported session policy: {policy}")
+
+
+def _session_state_path(workspace: Path, name: str) -> Path:
+    safe_name = "".join(c for c in name if c.isalnum() or c in ("_", "-")).strip() or "default"
+    return workspace / ".agent" / "sessions" / f"{safe_name}.json"
+
+
+def _read_session_state(workspace: Path, name: str) -> dict[str, Any]:
+    path = _session_state_path(workspace, name)
+    if not path.exists():
+        return {}
+    with path.open("r", encoding="utf-8") as f:
+        data = json.load(f)
+    if not isinstance(data, dict):
+        return {}
+    return data
+
+
+def _write_session_state(workspace: Path, name: str, session_id: str) -> None:
+    path = _session_state_path(workspace, name)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    data = {
+        "session_id": session_id,
+        "session_name": name,
+        "updated_at_unix_ms": int(time.time() * 1000),
+    }
+    with path.open("w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+
 def _summarize_opencode_output(stdout: str, stderr: str, exit_code: int, text_output: str) -> str:
     if text_output:
         preview = text_output.replace("\n", " ")[:240]
@@ -219,6 +282,26 @@ def _extract_opencode_error(stdout: str) -> str:
             if isinstance(error.get("message"), str):
                 return error["message"]
         return "unknown opencode error"
+    return ""
+
+
+def _extract_session_id(stdout: str) -> str:
+    for line in stdout.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            frame = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        session_id = frame.get("sessionID")
+        if isinstance(session_id, str) and session_id:
+            return session_id
+        part = frame.get("part")
+        if isinstance(part, dict):
+            session_id = part.get("sessionID")
+            if isinstance(session_id, str) and session_id:
+                return session_id
     return ""
 
 

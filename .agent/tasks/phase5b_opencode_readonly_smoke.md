@@ -16,7 +16,10 @@ Verify that agent-bridge can invoke OpenCode through a cli_adapter shim in read-
 
 - config/agents.toml
 - config/runners.toml
+- .gitignore
+- src/agent_bridge/cli.py
 - src/agent_bridge/runs.py
+- src/agent_bridge/runners/base.py
 - src/agent_bridge/runners/cli_adapter.py
 - src/agent_bridge/adapters/__init__.py
 - src/agent_bridge/adapters/opencode_readonly.py
@@ -31,6 +34,7 @@ Verify that agent-bridge can invoke OpenCode through a cli_adapter shim in read-
 - .git/**
 - .agent/runs/**
 - .agent/metrics/**
+- .agent/sessions/*.json
 
 ## Required Commands
 
@@ -49,6 +53,7 @@ Verify that agent-bridge can invoke OpenCode through a cli_adapter shim in read-
 - The task prompt is delivered to the adapter and then to OpenCode.
 - Successful smoke requires OpenCode text output containing AGENT_BRIDGE_OPENCODE_SMOKE_OK.
 - Run artifacts include decision_report.json, raw/stdout.txt, raw/stderr.txt, and completed.marker.
+- OpenCode session_id is captured and stored under .agent/sessions for continue_named policy.
 - The adapter remains read-only and does not intentionally modify repository files.
 - nanoGPT/OpenCode model selection is configured through runner env/config, not hardcoded in runs.py.
 
