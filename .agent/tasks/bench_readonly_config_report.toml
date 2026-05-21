@@ -1,0 +1,55 @@
+schema_version = "task_spec.v0"
+task_id = "bench-readonly-config-report"
+phase = "Benchmark"
+slice = "Read-only Config Understanding"
+title = "Benchmark read-only config understanding"
+owner = "commander"
+
+objective = """
+Inspect the agent-bridge configuration files and report how OpenCode, nanoGPT, and Antigravity adapters are wired. Focus on concrete agent IDs, runner IDs, model/provider fields, and safety-relevant env flags.
+"""
+
+allowed_files = [
+  "config/agents.toml",
+  "config/runners.toml",
+  ".agent/tasks/bench_readonly_config_report.toml",
+  ".agent/tasks/bench_readonly_config_report.md",
+]
+
+forbidden_files = [
+  "agent_bridge_mvp.md",
+  ".git/**",
+  ".agent/runs/**",
+  ".agent/metrics/**",
+  ".agent/sessions/*.json",
+]
+
+required_commands = [
+  "uv run agent-bridge task validate --spec .agent/tasks/bench_readonly_config_report.toml",
+  "uv run agent-bridge task render --spec .agent/tasks/bench_readonly_config_report.toml --out .agent/tasks/bench_readonly_config_report.md",
+  "uv run agent-bridge run --agent opencode_kimi_report --task .agent/tasks/bench_readonly_config_report.md --workspace .",
+  "uv run agent-bridge task check-tool-use --spec .agent/tasks/bench_readonly_config_report.toml --run latest --workspace .",
+]
+
+acceptance_criteria = [
+  "The report identifies opencode_kimi_readonly, opencode_kimi_report, and antigravity_smoke if present.",
+  "The report distinguishes model/provider config from runner env config.",
+  "The report mentions --pure or AGENT_BRIDGE_OPENCODE_PURE when present.",
+  "The report does not inspect files outside the allowed config files.",
+]
+
+hard_rules = [
+  "Do not commit.",
+  "Do not implement the next phase.",
+  "Do not modify files.",
+  "Do not add runtime dependencies.",
+]
+
+expected_report_sections = [
+  "Changed files",
+  "Commands run",
+  "Result",
+  "Risks",
+  "Open questions",
+  "Next recommended step",
+]

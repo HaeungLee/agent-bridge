@@ -1,4 +1,5 @@
 import fnmatch
+import json
 import subprocess
 import tomllib
 from dataclasses import dataclass
@@ -46,6 +47,24 @@ class ResultCheck:
     @property
     def passed(self) -> bool:
         return not self.forbidden_matches and not self.out_of_scope_files
+
+
+@dataclass
+class ToolUseCheck:
+    tool_uses: list[dict[str, Any]]
+    forbidden_matches: list[str]
+    out_of_scope_paths: list[str]
+    outside_workspace_paths: list[str]
+    write_tool_uses: list[str]
+
+    @property
+    def passed(self) -> bool:
+        return (
+            not self.forbidden_matches
+            and not self.out_of_scope_paths
+            and not self.outside_workspace_paths
+            and not self.write_tool_uses
+        )
 
 
 def load_task_spec(path: Path) -> dict[str, Any]:
@@ -160,6 +179,60 @@ def check_task_result(spec: dict[str, Any], workspace_path: Path) -> ResultCheck
     )
 
 
+def check_run_tool_use(spec: dict[str, Any], run_dir: Path, workspace_path: Path) -> ToolUseCheck:
+    validation = validate_task_spec(spec)
+    spec = validation.spec
+    workspace = workspace_path.resolve()
+    raw_stdout_path = run_dir / "raw" / "stdout.txt"
+    if not raw_stdout_path.exists():
+        raise FileNotFoundError(f"Missing raw stdout artifact: {raw_stdout_path}")
+
+    tool_uses = extract_tool_uses(raw_stdout_path.read_text(encoding="utf-8"))
+    allowed = [_normalize_pattern(item) for item in spec["allowed_files"]]
+    forbidden = [_normalize_pattern(item) for item in spec["forbidden_files"]]
+
+    forbidden_matches: list[str] = []
+    out_of_scope_paths: list[str] = []
+    outside_workspace_paths: list[str] = []
+    write_tool_uses: list[str] = []
+
+    for tool_use in tool_uses:
+        tool = str(tool_use.get("tool") or "")
+        if tool.lower() in {"edit", "write", "patch", "multiedit"}:
+            write_tool_uses.append(tool)
+        for raw_path in _tool_use_paths(tool_use):
+            rel_path = _normalize_tool_path(raw_path, workspace)
+            if not rel_path:
+                outside_workspace_paths.append(raw_path)
+                continue
+            if _matches_any(rel_path, forbidden):
+                forbidden_matches.append(rel_path)
+            elif not _matches_any(rel_path, allowed):
+                out_of_scope_paths.append(rel_path)
+
+    return ToolUseCheck(
+        tool_uses=tool_uses,
+        forbidden_matches=sorted(set(forbidden_matches)),
+        out_of_scope_paths=sorted(set(out_of_scope_paths)),
+        outside_workspace_paths=sorted(set(outside_workspace_paths)),
+        write_tool_uses=sorted(set(write_tool_uses)),
+    )
+
+
+def extract_tool_uses(raw_stdout: str) -> list[dict[str, Any]]:
+    tool_uses: list[dict[str, Any]] = []
+    for line in raw_stdout.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            frame = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        tool_uses.extend(_extract_tool_uses_from_frame(frame))
+    return tool_uses
+
+
 def collect_git_changed_files(workspace_path: Path) -> list[str]:
     result = subprocess.run(
         ["git", "-C", str(workspace_path), "status", "--porcelain=v1", "--untracked-files=all"],
@@ -176,6 +249,99 @@ def collect_git_changed_files(workspace_path: Path) -> list[str]:
         if path:
             changed_files.append(_normalize_pattern(path))
     return sorted(set(changed_files))
+
+
+def _extract_tool_uses_from_frame(frame: dict[str, Any]) -> list[dict[str, Any]]:
+    found: list[dict[str, Any]] = []
+    if frame.get("type") == "tool_use":
+        normalized = _normalize_tool_use_frame(frame)
+        if normalized:
+            found.append(normalized)
+
+    data = frame.get("data")
+    if isinstance(data, dict):
+        for artifact in data.get("artifacts", []) or []:
+            if not isinstance(artifact, dict):
+                continue
+            if artifact.get("kind") == "tool_use_summary":
+                found.extend(_extract_tool_uses_from_summary_artifact(artifact))
+                continue
+            if artifact.get("kind") != "stdout_preview":
+                continue
+            text = artifact.get("text")
+            if isinstance(text, str):
+                found.extend(extract_tool_uses(text))
+    return found
+
+
+def _extract_tool_uses_from_summary_artifact(artifact: dict[str, Any]) -> list[dict[str, Any]]:
+    items = artifact.get("items")
+    if not isinstance(items, list):
+        return []
+    found: list[dict[str, Any]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        paths = item.get("paths")
+        if not isinstance(paths, list):
+            paths = []
+        clean_paths = [path for path in paths if isinstance(path, str) and path.strip()]
+        input_data: dict[str, Any] = {}
+        if clean_paths:
+            input_data["filePath"] = clean_paths[0]
+            input_data["paths"] = clean_paths
+        found.append(
+            {
+                "tool": item.get("tool") or "",
+                "status": item.get("status") or "",
+                "input": input_data,
+            }
+        )
+    return found
+
+
+def _normalize_tool_use_frame(frame: dict[str, Any]) -> dict[str, Any]:
+    part = frame.get("part")
+    if not isinstance(part, dict):
+        return {}
+    state = part.get("state")
+    if not isinstance(state, dict):
+        state = {}
+    input_data = state.get("input")
+    if not isinstance(input_data, dict):
+        input_data = {}
+    return {
+        "tool": part.get("tool") or frame.get("tool") or "",
+        "status": state.get("status") or "",
+        "input": input_data,
+    }
+
+
+def _tool_use_paths(tool_use: dict[str, Any]) -> list[str]:
+    input_data = tool_use.get("input")
+    if not isinstance(input_data, dict):
+        return []
+    paths: list[str] = []
+    for key in ("filePath", "filepath", "path", "target_file", "targetPath"):
+        value = input_data.get(key)
+        if isinstance(value, str) and value.strip():
+            paths.append(value.strip())
+    value = input_data.get("paths")
+    if isinstance(value, list):
+        paths.extend(item.strip() for item in value if isinstance(item, str) and item.strip())
+    return paths
+
+
+def _normalize_tool_path(raw_path: str, workspace: Path) -> str:
+    try:
+        candidate = Path(raw_path)
+        if not candidate.is_absolute():
+            candidate = workspace / candidate
+        resolved = candidate.resolve()
+        rel = resolved.relative_to(workspace)
+    except Exception:
+        return ""
+    return _normalize_pattern(rel.as_posix())
 
 
 def _validate_required_strings(spec: dict[str, Any]) -> None:

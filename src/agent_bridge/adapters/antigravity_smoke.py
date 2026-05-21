@@ -50,7 +50,7 @@ def _run_antigravity(request: dict[str, Any]) -> dict[str, Any]:
         raise ValueError(f"workspace_path is not a directory: {workspace}")
 
     # Load configuration
-    cmd_name = os.environ.get("AGENT_BRIDGE_ANTIGRAVITY_COMMAND", r"C:\Users\Harry\AppData\Local\agy\bin\agy.exe").strip()
+    cmd_name = os.environ.get("AGENT_BRIDGE_ANTIGRAVITY_COMMAND", "agy").strip()
     timeout_ms = int(os.environ.get("AGENT_BRIDGE_ANTIGRAVITY_TIMEOUT_MS", "60000"))
     direct_smoke = os.environ.get("AGENT_BRIDGE_ANTIGRAVITY_DIRECT_SMOKE", "").strip().lower() in {"1", "true", "yes"}
     session_policy = os.environ.get("AGENT_BRIDGE_ANTIGRAVITY_SESSION_POLICY", "new").strip() or "new"
@@ -150,7 +150,7 @@ def _first_filesystem_scope(constraints: dict[str, Any]) -> str:
 
 
 def _scan_sessions() -> set[str]:
-    p = Path(r"C:\Users\Harry\.antigravitycli")
+    p = Path.home() / ".antigravitycli"
     if not p.exists() or not p.is_dir():
         return set()
     try:

@@ -1,0 +1,57 @@
+schema_version = "task_spec.v0"
+task_id = "phase5b-tool-use-path-checker"
+phase = "Phase 5"
+slice = "Raw JSONL Tool-Use Path Checker"
+title = "Check raw adapter tool-use paths against task scope"
+owner = "commander"
+
+objective = """
+Add a thin gate that reads raw run artifacts, extracts OpenCode JSONL tool_use file paths, and verifies they stay within task_spec.v0 allowed_files and forbidden_files before write-capable adapters are enabled.
+"""
+
+allowed_files = [
+  "src/agent_bridge/cli.py",
+  "src/agent_bridge/task_spec.py",
+  ".agent/tasks/phase5b_tool_use_path_checker.toml",
+  ".agent/tasks/phase5b_tool_use_path_checker.md",
+  "docs/process/20260522_process.md",
+]
+
+forbidden_files = [
+  "agent_bridge_mvp.md",
+  ".git/**",
+  ".agent/runs/**",
+  ".agent/metrics/**",
+  ".agent/sessions/*.json",
+]
+
+required_commands = [
+  "python -m compileall src",
+  "python -m agent_bridge.cli task render --spec .agent/tasks/phase5b_tool_use_path_checker.toml --out .agent/tasks/phase5b_tool_use_path_checker.md",
+  "python -m agent_bridge.cli task check-tool-use --spec .agent/tasks/phase5b_readonly_report_smoke.toml --run 20260522-010013-b3d2e4-opencode_kimi_report --workspace .",
+  "python -m agent_bridge.cli task check-result --spec .agent/tasks/phase5b_tool_use_path_checker.toml --workspace .",
+]
+
+acceptance_criteria = [
+  "The checker parses adapter raw stdout and nested OpenCode stdout_preview JSONL.",
+  "The checker reports observed tool names and statuses.",
+  "The checker fails on write-capable tool use.",
+  "The checker fails on forbidden, out-of-scope, or outside-workspace file paths.",
+  "The latest tightened OpenCode report run passes the tool-use path checker.",
+]
+
+hard_rules = [
+  "Do not commit.",
+  "Do not implement the next phase.",
+  "Do not enable write-capable OpenCode execution.",
+  "Do not add runtime dependencies.",
+]
+
+expected_report_sections = [
+  "Changed files",
+  "Commands run",
+  "Result",
+  "Risks",
+  "Open questions",
+  "Next recommended step",
+]

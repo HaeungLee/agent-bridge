@@ -122,6 +122,10 @@ def _run_opencode(request: dict[str, Any]) -> dict[str, Any]:
         "summary": summary,
         "artifacts": [
             {
+                "kind": "tool_use_summary",
+                "items": _extract_tool_use_summary(stdout),
+            },
+            {
                 "kind": "stdout_preview",
                 "text": stdout[:STDOUT_PREVIEW_CHARS],
             },
@@ -160,9 +164,10 @@ def _truthy_env(name: str) -> bool:
 
 def _compact_report_message(task_prompt: str) -> str:
     files = _extract_rendered_list(task_prompt, "Allowed Files")
-    config_files = [path for path in files if path in {"config/agents.toml", "config/runners.toml"}]
-    inspect_files = config_files or files[:3]
+    inspect_files = _benchmark_target_files(files)
     inspect_text = ", ".join(inspect_files) if inspect_files else "the rendered task's explicit allowed files"
+    objective = _extract_rendered_section(task_prompt, "Objective")[:600]
+    focus_line = objective if objective else "Return a compact factual report about the requested repository slice."
     return "\n".join(
         [
             "Read-only repository report.",
@@ -170,9 +175,22 @@ def _compact_report_message(task_prompt: str) -> str:
             "Use only read/grep/glob style inspection if tool use is needed.",
             f"Inspect only: {inspect_text}.",
             "Report factual findings in 6 bullets.",
-            "Focus on the OpenCode/nanoGPT bridge agent and runner configuration.",
+            f"Focus: {focus_line}",
         ]
     )
+
+
+def _benchmark_target_files(files: list[str]) -> list[str]:
+    ignored_prefixes = (
+        ".agent/tasks/",
+        "docs/process/",
+        "roadmap.md",
+    )
+    targets = [
+        path for path in files
+        if not any(path.startswith(prefix) for prefix in ignored_prefixes)
+    ]
+    return targets[:4] or files[:3]
 
 
 def _extract_rendered_list(task_prompt: str, heading: str) -> list[str]:
@@ -195,6 +213,23 @@ def _extract_rendered_list(task_prompt: str, heading: str) -> list[str]:
         if value:
             items.append(value)
     return items
+
+
+def _extract_rendered_section(task_prompt: str, heading: str) -> str:
+    lines = task_prompt.replace("\r\n", "\n").splitlines()
+    marker = f"## {heading}"
+    collected: list[str] = []
+    in_section = False
+    for line in lines:
+        stripped = line.strip()
+        if stripped == marker:
+            in_section = True
+            continue
+        if in_section and stripped.startswith("## "):
+            break
+        if in_section:
+            collected.append(line)
+    return "\n".join(collected).strip()
 
 
 def _readonly_message(task_prompt: str) -> str:
@@ -373,6 +408,42 @@ def _extract_opencode_text(stdout: str) -> str:
         if isinstance(part, dict) and isinstance(part.get("text"), str):
             texts.append(part["text"])
     return "\n".join(texts).strip()
+
+
+def _extract_tool_use_summary(stdout: str) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    for line in stdout.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            frame = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if frame.get("type") != "tool_use":
+            continue
+        part = frame.get("part")
+        if not isinstance(part, dict):
+            continue
+        state = part.get("state")
+        if not isinstance(state, dict):
+            state = {}
+        input_data = state.get("input")
+        if not isinstance(input_data, dict):
+            input_data = {}
+        paths: list[str] = []
+        for key in ("filePath", "filepath", "path", "target_file", "targetPath"):
+            value = input_data.get(key)
+            if isinstance(value, str) and value.strip():
+                paths.append(value.strip())
+        items.append(
+            {
+                "tool": part.get("tool") or "",
+                "status": state.get("status") or "",
+                "paths": paths,
+            }
+        )
+    return items
 
 
 if __name__ == "__main__":

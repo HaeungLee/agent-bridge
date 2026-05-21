@@ -528,6 +528,65 @@ def cmd_task_check_result(args):
     print("[FAIL] task result exceeded task_spec.v0 scope", file=sys.stderr)
     sys.exit(1)
 
+def cmd_task_check_tool_use(args):
+    """
+    Executes 'agent-bridge task check-tool-use --spec <spec.toml> --run <run> --workspace <path>'.
+    """
+    from agent_bridge.config import find_project_root
+    from agent_bridge.runs import find_latest_run
+    from agent_bridge.task_spec import check_run_tool_use, load_task_spec
+
+    root = find_project_root()
+    spec_path = Path(args.spec)
+    workspace_path = Path(args.workspace)
+    try:
+        if args.run == "latest":
+            run_dir = find_latest_run(root)
+        else:
+            run_dir = root / ".agent" / "runs" / args.run
+            if not run_dir.exists() or not run_dir.is_dir():
+                raise FileNotFoundError(f"Run directory for '{args.run}' does not exist")
+        result = check_run_tool_use(load_task_spec(spec_path), run_dir, workspace_path)
+    except Exception as e:
+        print(f"[FAIL] Tool-use check failed: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    print("==================================================")
+    print("Agent Bridge Tool-Use Scope Check")
+    print("==================================================")
+    print(f"Spec      : {spec_path}")
+    print(f"Run       : {run_dir.name}")
+    print(f"Workspace : {workspace_path}")
+    print(f"Tool uses : {len(result.tool_uses)}")
+    if result.tool_uses:
+        print("Observed tools:")
+        for item in result.tool_uses:
+            tool = item.get("tool") or "unknown"
+            status = item.get("status") or "unknown"
+            print(f"  - {tool} ({status})")
+    if result.write_tool_uses:
+        print("Write-capable tool violations:")
+        for tool in result.write_tool_uses:
+            print(f"  - {tool}")
+    if result.forbidden_matches:
+        print("Forbidden path violations:")
+        for path in result.forbidden_matches:
+            print(f"  - {path}")
+    if result.out_of_scope_paths:
+        print("Out-of-scope path violations:")
+        for path in result.out_of_scope_paths:
+            print(f"  - {path}")
+    if result.outside_workspace_paths:
+        print("Outside-workspace path violations:")
+        for path in result.outside_workspace_paths:
+            print(f"  - {path}")
+    print("==================================================")
+    if result.passed:
+        print("[OK] tool-use paths stayed within task_spec.v0 scope")
+        sys.exit(0)
+    print("[FAIL] tool-use paths exceeded task_spec.v0 scope", file=sys.stderr)
+    sys.exit(1)
+
 def main():
     parser = argparse.ArgumentParser(
         prog="agent-bridge",
@@ -579,6 +638,11 @@ def main():
     parser_task_check = task_subparsers.add_parser("check-result", help="Check git changes against task_spec.v0 scope")
     parser_task_check.add_argument("--spec", required=True, help="Path to task_spec.v0 TOML")
     parser_task_check.add_argument("--workspace", default=".", help="Workspace path to inspect with git status")
+
+    parser_task_tool_use = task_subparsers.add_parser("check-tool-use", help="Check raw run tool-use paths against task_spec.v0 scope")
+    parser_task_tool_use.add_argument("--spec", required=True, help="Path to task_spec.v0 TOML")
+    parser_task_tool_use.add_argument("--run", default="latest", help="Run ID to inspect (default: latest)")
+    parser_task_tool_use.add_argument("--workspace", default=".", help="Workspace path used to normalize tool paths")
     
     args = parser.parse_args()
     
@@ -599,6 +663,8 @@ def main():
             cmd_task_render(args)
         elif args.task_command == "check-result":
             cmd_task_check_result(args)
+        elif args.task_command == "check-tool-use":
+            cmd_task_check_tool_use(args)
         else:
             parser_task.print_help()
             sys.exit(0)
