@@ -10,3 +10,6 @@ type = "api"
 [runners.mock_subprocess]
 type = "subprocess"
 command = "python"
+
+[runners.cli_adapter]
+type = "cli_adapter"

@@ -42,3 +42,13 @@ role = "implementation"
 default_mode = "mock"
 max_cost_usd = 0.0
 output_contract = "patch_v1"
+
+[agents.cli_smoke]
+runner = "cli_adapter"
+provider = "local"
+model = "adapter-smoke"
+role = "implementation"
+default_mode = "execute"
+max_cost_usd = 0.0
+output_contract = "adapter.v0.1"
+adapter_id = "cli_smoke"

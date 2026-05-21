@@ -2,6 +2,15 @@
 
 This document dynamically aggregates agent/model execution and evaluation results (error categories, score averages, etc.) as a routing memory.
 
+## adapter-smoke (via local/cli_adapter)
+
+- **Recent score average**: 100.0 (Based on 1 evaluations)
+- **Best task types**: implementation
+- **Strong (Best use case)**: cli-adapter-smoke
+- **Weak (Avoid)**: real-agent-integration
+- **Commander notes**:
+  - `[20260521-140456-9f920a-cli_smoke]` Phase 5-A foundation smoke accepted.
+
 ## glm-5.2 (via nanogpt/opencode)
 
 - **Recent score average**: 100.0 (Based on 2 evaluations)

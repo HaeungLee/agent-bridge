@@ -1,14 +1,24 @@
 import datetime
 import json
 import os
+import tempfile
 import uuid
 from pathlib import Path
 from typing import Optional, Any
 from agent_bridge.config import find_project_root, load_all_configs
 from agent_bridge.contracts import DecisionReport, TestSummary, validate_decision_report
+from agent_bridge.runners.cli_adapter import CliAdapterRunner, make_local_smoke_config
 from agent_bridge.runners.mock_subprocess import MockSubprocessRunner
 
 COMPLETED_MARKER = "completed.marker"
+DECISION_REPORT_STATUS_MAP = {
+    "completed": "completed",
+    "failed": "failed",
+    "timeout": "timeout",
+    "blocked": "blocked",
+    "partial": "completed",
+    "needs_approval": "blocked",
+}
 
 def write_json(path: Path, data: Any) -> None:
     """
@@ -53,6 +63,12 @@ def generate_run_id(agent_name: str) -> str:
     suffix = uuid.uuid4().hex[:6]
     sanitized_agent = "".join(c for c in agent_name if c.isalnum() or c in ("_", "-")).lower()
     return f"{timestamp}-{suffix}-{sanitized_agent}"
+
+def normalize_report_status(runner_status: str) -> str:
+    """
+    Maps runner-specific statuses into decision_report.v0 statuses.
+    """
+    return DECISION_REPORT_STATUS_MAP.get(runner_status, "failed")
 
 def create_run_directory(run_id: str, root_path: Optional[Path] = None) -> Path:
     """
@@ -117,13 +133,16 @@ def execute_mock_run(agent_name: str, task_path: Path, workspace_path: Path, roo
     # D. .agent/runs writability
     runs_dir = root_path / ".agent" / "runs"
     os.makedirs(runs_dir, exist_ok=True)
+    temp_path = None
     try:
-        test_file = runs_dir / ".write_check"
-        with open(test_file, "w") as f:
+        fd, temp_path = tempfile.mkstemp(prefix=".write_check_", dir=runs_dir)
+        with os.fdopen(fd, "w") as f:
             f.write("check")
-        os.remove(test_file)
     except Exception as e:
         raise PermissionError(f"Directory '.agent/runs' is not writable: {e}")
+    finally:
+        if temp_path and os.path.exists(temp_path):
+            os.remove(temp_path)
         
     # 2. Setup run ID & directory with collision retry
     max_retries = 3
@@ -156,7 +175,7 @@ def execute_mock_run(agent_name: str, task_path: Path, workspace_path: Path, roo
         # default timeout: 5 seconds for smoke testing
         res = runner.run(task_path, workspace_path, timeout_seconds=5)
         
-        status_val = res.status
+        status_val = normalize_report_status(res.status)
         if status_val == "completed":
             verdict_val = "NEEDS_DECISION"
         else:
@@ -175,6 +194,24 @@ def execute_mock_run(agent_name: str, task_path: Path, workspace_path: Path, roo
         open_questions_list = ["When will Gemini or active coding agents be integrated?"]
         next_action_val = "Proceed to Phase 4 for router memory or Phase 5 workflow."
         confidence_val = 0.8 if status_val == "completed" else 0.0
+    elif runner_name == "cli_adapter":
+        adapter_id = agent_info.get("adapter_id", agent_name)
+        runner = CliAdapterRunner(adapter_id=adapter_id, config=make_local_smoke_config())
+        res = runner.run(task_path, workspace_path, timeout_seconds=30)
+
+        status_val = normalize_report_status(res.status)
+        verdict_val = "NEEDS_DECISION" if status_val == "completed" else "BLOCKED"
+        summary_val = f"CLI adapter run result: {res.summary}"
+        commands_run_val = res.commands_run
+        runtime_sec = res.runtime_seconds
+        stdout_val = res.stdout
+        stderr_val = res.stderr
+        risks_list = ["Phase 5-A: Local CLI adapter contract smoke only. No external coding agent invoked."]
+        if status_val != "completed":
+            risks_list.append("CLI adapter smoke did not complete successfully.")
+        open_questions_list = ["When should OpenCode be enabled as a real cli_adapter target?"]
+        next_action_val = "Review cli_adapter contract smoke before configuring OpenCode."
+        confidence_val = 0.7 if status_val == "completed" else 0.0
     else:
         # Default blocked behavior for non-mock runners
         status_val = "blocked"

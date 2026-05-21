@@ -243,6 +243,6 @@ Next recommended step:
 
 ## Current Next Step
 
-Phase 4 has been successfully completed by Gemini (Antigravity). We have implemented a robust CLI run evaluation command (`agent-bridge eval`), defined a strict 15-category Error Taxonomy and score penalty system, and built an automated dynamic Model Routing Memory compiler (`.agent/metrics/model_routing.md`). Both interactive and non-interactive evaluations were fully verified and E2E tested.
+Phase 5-A foundation is in progress. Latest-run stabilization is complete, and a local `cli_adapter` smoke runner now verifies the adapter request/response contract without invoking external coding agents.
 
-Next step: Proceed to **Phase 5: Multi-Agent Workflow** milestones to support concurrent agent runs, task specification authoring/validation, and daily process rollups.
+Next step: Gate-review the `cli_adapter` foundation, then decide whether Phase 5-B should connect OpenCode/nanoGPT first or add `task_spec.v0` validation first.
