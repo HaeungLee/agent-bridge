@@ -23,8 +23,9 @@ timeout_ms = 120000
 [runners.cli_adapter.adapters.opencode_kimi_readonly.env]
 PYTHONPATH = "src"
 AGENT_BRIDGE_OPENCODE_MODEL = "nano-gpt/moonshotai/kimi-k2.6"
-AGENT_BRIDGE_OPENCODE_AGENT = ""
+AGENT_BRIDGE_OPENCODE_AGENT = "agents/bridge-smoke-agent"
+AGENT_BRIDGE_OPENCODE_PURE = "true"
 AGENT_BRIDGE_OPENCODE_TIMEOUT_MS = "120000"
 AGENT_BRIDGE_OPENCODE_SESSION_POLICY = "continue_named"
-AGENT_BRIDGE_OPENCODE_SESSION_NAME = "opencode_kimi_readonly"
+AGENT_BRIDGE_OPENCODE_SESSION_NAME = "opencode_bridge_smoke_agent"
 AGENT_BRIDGE_OPENCODE_DIRECT_SMOKE = "true"

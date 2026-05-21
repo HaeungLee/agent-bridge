@@ -13,6 +13,7 @@ allowed_files = [
   "config/agents.toml",
   "config/runners.toml",
   ".gitignore",
+  ".opencode/agent/agents/bridge-smoke-agent.md",
   "src/agent_bridge/cli.py",
   "src/agent_bridge/runs.py",
   "src/agent_bridge/runners/base.py",

@@ -245,4 +245,4 @@ Next recommended step:
 
 Phase 5-B OpenCode/nanoGPT readonly smoke is in progress. The bridge can invoke OpenCode through a `cli_adapter` shim, capture raw output into run artifacts, map OpenCode error frames to failed reports, enforce task-spec file scope after execution, and persist/reuse OpenCode session IDs through `.agent/sessions`.
 
-Current state: direct-command readonly smoke succeeds with `AGENT_BRIDGE_OPENCODE_SMOKE_OK`, and `continue_named` session reuse is verified. Next step: decide whether to create a dedicated OpenCode bridge agent or proceed to a read-only report task that uses the persisted session.
+Current state: direct-command readonly smoke succeeds with `AGENT_BRIDGE_OPENCODE_SMOKE_OK`, `continue_named` session reuse is verified, and a repo-local pure OpenCode agent `agents/bridge-smoke-agent` is now used for low-autonomy bridge smoke calls. Next step: run a read-only report task through this dedicated agent before enabling write-capable adapters.

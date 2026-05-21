@@ -54,6 +54,7 @@ def _run_opencode(request: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("AGENT_BRIDGE_OPENCODE_MODEL is required")
 
     agent = os.environ.get("AGENT_BRIDGE_OPENCODE_AGENT", "").strip()
+    pure = os.environ.get("AGENT_BRIDGE_OPENCODE_PURE", "").strip().lower() in {"1", "true", "yes"}
     timeout_ms = int(os.environ.get("AGENT_BRIDGE_OPENCODE_TIMEOUT_MS", "120000"))
     session_policy = os.environ.get("AGENT_BRIDGE_OPENCODE_SESSION_POLICY", "new").strip() or "new"
     session_name = os.environ.get("AGENT_BRIDGE_OPENCODE_SESSION_NAME", "").strip() or "default"
@@ -64,6 +65,10 @@ def _run_opencode(request: dict[str, Any]) -> dict[str, Any]:
 
     cmd = [
         "opencode",
+    ]
+    if pure:
+        cmd.append("--pure")
+    cmd.extend([
         "run",
         "--model",
         model,
@@ -71,7 +76,7 @@ def _run_opencode(request: dict[str, Any]) -> dict[str, Any]:
         "json",
         "--dir",
         str(workspace),
-    ]
+    ])
     if agent:
         cmd.extend(["--agent", agent])
     if session_id:
