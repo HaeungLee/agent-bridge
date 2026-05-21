@@ -488,6 +488,45 @@ def cmd_task_render(args):
     print("[OK] rendered task prompt written")
     sys.exit(0)
 
+def cmd_task_check_result(args):
+    """
+    Executes 'agent-bridge task check-result --spec <spec.toml> --workspace <path>'.
+    """
+    from agent_bridge.task_spec import check_task_result, load_task_spec
+
+    spec_path = Path(args.spec)
+    workspace_path = Path(args.workspace)
+    try:
+        result = check_task_result(load_task_spec(spec_path), workspace_path)
+    except Exception as e:
+        print(f"[FAIL] Task result check failed: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    print("==================================================")
+    print("Agent Bridge Task Result Check")
+    print("==================================================")
+    print(f"Spec      : {spec_path}")
+    print(f"Workspace : {workspace_path}")
+    print(f"Changed   : {len(result.changed_files)} files")
+    if result.changed_files:
+        print("Changed files:")
+        for path in result.changed_files:
+            print(f"  - {path}")
+    if result.forbidden_matches:
+        print("Forbidden file violations:")
+        for path in result.forbidden_matches:
+            print(f"  - {path}")
+    if result.out_of_scope_files:
+        print("Out-of-scope file violations:")
+        for path in result.out_of_scope_files:
+            print(f"  - {path}")
+    print("==================================================")
+    if result.passed:
+        print("[OK] task result stayed within allowed scope")
+        sys.exit(0)
+    print("[FAIL] task result exceeded task_spec.v0 scope", file=sys.stderr)
+    sys.exit(1)
+
 def main():
     parser = argparse.ArgumentParser(
         prog="agent-bridge",
@@ -535,6 +574,10 @@ def main():
     parser_task_render = task_subparsers.add_parser("render", help="Render task_spec.v0 TOML to Markdown")
     parser_task_render.add_argument("--spec", required=True, help="Path to task_spec.v0 TOML")
     parser_task_render.add_argument("--out", required=True, help="Path to output Markdown task")
+
+    parser_task_check = task_subparsers.add_parser("check-result", help="Check git changes against task_spec.v0 scope")
+    parser_task_check.add_argument("--spec", required=True, help="Path to task_spec.v0 TOML")
+    parser_task_check.add_argument("--workspace", default=".", help="Workspace path to inspect with git status")
     
     args = parser.parse_args()
     
@@ -553,6 +596,8 @@ def main():
             cmd_task_validate(args)
         elif args.task_command == "render":
             cmd_task_render(args)
+        elif args.task_command == "check-result":
+            cmd_task_check_result(args)
         else:
             parser_task.print_help()
             sys.exit(0)

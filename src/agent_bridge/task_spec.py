@@ -1,4 +1,5 @@
 import fnmatch
+import subprocess
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
@@ -34,6 +35,17 @@ REQUIRED_HARD_RULES = ["Do not commit.", "Do not implement the next phase."]
 class TaskSpecValidation:
     spec: dict[str, Any]
     warnings: list[str]
+
+
+@dataclass
+class ResultCheck:
+    changed_files: list[str]
+    forbidden_matches: list[str]
+    out_of_scope_files: list[str]
+
+    @property
+    def passed(self) -> bool:
+        return not self.forbidden_matches and not self.out_of_scope_files
 
 
 def load_task_spec(path: Path) -> dict[str, Any]:
@@ -125,6 +137,47 @@ def write_rendered_task(spec_path: Path, output_path: Path) -> None:
     output_path.write_text(prompt, encoding="utf-8")
 
 
+def check_task_result(spec: dict[str, Any], workspace_path: Path) -> ResultCheck:
+    validation = validate_task_spec(spec)
+    spec = validation.spec
+    changed_files = collect_git_changed_files(workspace_path)
+    allowed = [_normalize_pattern(item) for item in spec["allowed_files"]]
+    forbidden = [_normalize_pattern(item) for item in spec["forbidden_files"]]
+
+    forbidden_matches: list[str] = []
+    out_of_scope_files: list[str] = []
+
+    for changed_file in changed_files:
+        if _matches_any(changed_file, forbidden):
+            forbidden_matches.append(changed_file)
+        elif not _matches_any(changed_file, allowed):
+            out_of_scope_files.append(changed_file)
+
+    return ResultCheck(
+        changed_files=changed_files,
+        forbidden_matches=forbidden_matches,
+        out_of_scope_files=out_of_scope_files,
+    )
+
+
+def collect_git_changed_files(workspace_path: Path) -> list[str]:
+    result = subprocess.run(
+        ["git", "-C", str(workspace_path), "status", "--porcelain=v1", "--untracked-files=all"],
+        capture_output=True,
+        text=True,
+        shell=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"git status failed: {result.stderr.strip()}")
+
+    changed_files: list[str] = []
+    for line in result.stdout.splitlines():
+        path = _parse_porcelain_path(line)
+        if path:
+            changed_files.append(_normalize_pattern(path))
+    return sorted(set(changed_files))
+
+
 def _validate_required_strings(spec: dict[str, Any]) -> None:
     missing = [field for field in REQUIRED_STRING_FIELDS if field not in spec]
     if missing:
@@ -202,3 +255,16 @@ def _normalize_pattern(pattern: str) -> str:
 
 def _bullet_lines(items: list[str]) -> list[str]:
     return [f"- {item}" for item in items]
+
+
+def _matches_any(path: str, patterns: list[str]) -> bool:
+    return any(path == pattern or fnmatch.fnmatch(path, pattern) for pattern in patterns)
+
+
+def _parse_porcelain_path(line: str) -> str:
+    if not line or len(line) < 4:
+        return ""
+    raw_path = line[3:]
+    if " -> " in raw_path:
+        raw_path = raw_path.split(" -> ", 1)[1]
+    return raw_path.strip().strip('"')

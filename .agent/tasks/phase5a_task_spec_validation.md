@@ -34,6 +34,7 @@ Add a narrow task_spec.v0 preflight layer. The bridge should validate a TOML tas
 
 - uv run agent-bridge task validate --spec .agent/tasks/phase5a_task_spec_validation.toml
 - uv run agent-bridge task render --spec .agent/tasks/phase5a_task_spec_validation.toml --out .agent/tasks/phase5a_task_spec_validation.md
+- uv run agent-bridge task check-result --spec .agent/tasks/phase5a_task_spec_validation.toml --workspace .
 - uv run agent-bridge run --agent cli_smoke --task .agent/tasks/phase5a_task_spec_validation.md --workspace .
 - uv run agent-bridge doctor
 
@@ -41,6 +42,7 @@ Add a narrow task_spec.v0 preflight layer. The bridge should validate a TOML tas
 
 - Valid task_spec.v0 TOML exits 0.
 - Rendered Markdown prompt is deterministic and includes all required sections.
+- Result check fails when git changes are outside allowed_files or inside forbidden_files.
 - The existing run command accepts the rendered Markdown task.
 - No OpenCode, nanoGPT, external API, worktree, or patch workflow is implemented.
 

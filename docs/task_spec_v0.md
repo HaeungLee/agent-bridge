@@ -20,6 +20,7 @@ discussion
   -> agent-bridge task validate --spec <spec.toml>
   -> agent-bridge task render --spec <spec.toml> --out <task.md>
   -> agent-bridge run --agent <agent> --task <task.md> --workspace <path>
+  -> agent-bridge task check-result --spec <spec.toml> --workspace <path>
 ```
 
 `agent-bridge run` keeps accepting Markdown task files. This preserves the current run lifecycle and makes the task contract an explicit preflight layer.
@@ -104,9 +105,24 @@ Required checks:
   - `Do not commit.`
   - `Do not implement the next phase.`
 
-v0 does not inspect the final git diff. Result checking is a later phase.
+## 5. Result Check
 
-## 5. Rendered Prompt
+`task_spec.v0` includes a thin result gate:
+
+```text
+agent-bridge task check-result --spec <spec.toml> --workspace <path>
+```
+
+The checker reads `git status --porcelain=v1 --untracked-files=all` from the workspace and verifies:
+
+- every changed file matches at least one `allowed_files` pattern
+- no changed file matches a `forbidden_files` pattern
+- untracked files are included
+- renamed files are checked by their destination path
+
+The result checker is intentionally simple. It does not parse patches, inspect line-level edits, or apply policy to ignored generated output.
+
+## 6. Rendered Prompt
 
 The rendered Markdown prompt should be deterministic and boring. It is an execution contract, not a motivational document.
 
@@ -127,7 +143,7 @@ Required sections:
 
 The rendered prompt must repeat that the agent should only implement the task described in the spec and must not implement future phases.
 
-## 6. Non-Goals
+## 7. Non-Goals
 
 Do not implement these in v0:
 
@@ -137,16 +153,17 @@ Do not implement these in v0:
 - automatic patch application
 - real external model invocation
 - worktree isolation
-- result diff validation
+- line-level diff validation
 - process rollover generation
 
-## 7. Next Step
+## 8. Next Step
 
 Implement:
 
 ```text
 agent-bridge task validate --spec <spec.toml>
 agent-bridge task render --spec <spec.toml> --out <task.md>
+agent-bridge task check-result --spec <spec.toml> --workspace .
 ```
 
 Then run the rendered prompt through `cli_smoke` only.

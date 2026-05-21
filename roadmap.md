@@ -243,6 +243,6 @@ Next recommended step:
 
 ## Current Next Step
 
-Phase 5-A foundation is in progress. Latest-run stabilization is complete, a local `cli_adapter` smoke runner verifies the adapter request/response contract, and `task_spec.v0` TOML specs can now be validated and rendered into Markdown prompts.
+Phase 5-A foundation is in progress. Latest-run stabilization is complete, a local `cli_adapter` smoke runner verifies the adapter request/response contract, and `task_spec.v0` TOML specs can now be validated, rendered into Markdown prompts, and checked against changed files after execution.
 
-Next step: Gate-review `task_spec.v0`, then decide whether Phase 5-B should connect OpenCode/nanoGPT first or add result checks for actual changed files versus `allowed_files`.
+Next step: Gate-review the task spec result gate, then decide whether Phase 5-B should connect OpenCode/nanoGPT first or add stronger result checks for required artifacts, roadmap scope, and process log updates.
