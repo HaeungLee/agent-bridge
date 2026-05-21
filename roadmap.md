@@ -156,6 +156,13 @@ Acceptance criteria:
 
 Objective: support multiple agents without corrupting logs or commander context.
 
+Before Phase 5 implementation, complete these cleanup gates:
+
+- [x] Stabilize `latest` resolution so it ignores in-progress or incomplete run directories.
+- [ ] Decide whether `.agent/metrics/model_routing.md` is tracked source, generated output, or replaced by a sample file.
+- [x] Keep `mynote` valid UTF-8/ASCII and aligned with `AGENTS.md`.
+- [x] Strengthen `AGENTS.md` scope-control rules before delegating more Antigravity work.
+
 Milestones:
 
 - [ ] Ensure each run writes only to its own run directory.

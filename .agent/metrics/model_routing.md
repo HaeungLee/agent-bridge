@@ -1,22 +1,25 @@
 # Model Routing Notes
 
-이 문서는 각 에이전트/모델 조합의 실행 및 평가 결과(결함 유형, 점수 평균 등)를 동적으로 집계하여 생성한 라우팅 메모리 파일입니다.
+This document dynamically aggregates agent/model execution and evaluation results (error categories, score averages, etc.) as a routing memory.
 
 ## glm-5.2 (via nanogpt/opencode)
 
-- **Recent score average**: 100.0 (기반 평가 횟수: 1)
+- **Recent score average**: 100.0 (Based on 2 evaluations)
 - **Best task types**: code_review
 - **Strong (Best use case)**: code review
 - **Weak (Avoid)**: large refactors
 - **Commander notes**:
   - `[20260521-130451-5d0ccd-glm_review]` Excellent manual verification mock run.
+  - `[20260521-130859-37c0b1-glm_review]` Evaluated via CLI arguments.
 
 ## mock (via local/mock_subprocess)
 
-- **Recent score average**: 50.0 (기반 평가 횟수: 2)
+- **Recent score average**: 75.0 (Based on 4 evaluations)
 - **Best task types**: implementation
-- **Strong (Best use case)**: smoke, smoke testing
-- **Weak (Avoid)**: complex logic, risky
+- **Strong (Best use case)**: latest-safety, smoke, smoke testing
+- **Weak (Avoid)**: complex logic, incomplete-runs, risky
 - **Commander notes**:
   - `[20260521-130447-592d98-mock_impl]` Some syntax and style warnings found.
   - `[20260521-130858-8bb04f-mock_impl]` partial-test
+  - `[20260521-132537-b06365-mock_impl]` sequential-status-check
+  - `[20260521-134512-ae7caf-mock_impl]` completed-marker-check

@@ -8,6 +8,8 @@ from agent_bridge.config import find_project_root, load_all_configs
 from agent_bridge.contracts import DecisionReport, TestSummary, validate_decision_report
 from agent_bridge.runners.mock_subprocess import MockSubprocessRunner
 
+COMPLETED_MARKER = "completed.marker"
+
 def write_json(path: Path, data: Any) -> None:
     """
     Writes data in JSON format to the specified path.
@@ -24,16 +26,20 @@ def write_text(path: Path, text: str) -> None:
 
 def find_latest_run(root_path: Path) -> Path:
     """
-    Finds the latest run directory under .agent/runs/ based on the directory name (timestamp).
-    Raises FileNotFoundError if no run directories exist.
+    Finds the latest completed run directory under .agent/runs/.
+    A run is considered completed only after completed.marker is written.
+    Raises FileNotFoundError if no completed run directories exist.
     """
     runs_dir = root_path / ".agent" / "runs"
     if not runs_dir.exists():
         raise FileNotFoundError("No run directory exists because .agent/runs is missing")
         
-    run_dirs = [d for d in runs_dir.iterdir() if d.is_dir()]
+    run_dirs = [
+        d for d in runs_dir.iterdir()
+        if d.is_dir() and (d / COMPLETED_MARKER).exists()
+    ]
     if not run_dirs:
-        raise FileNotFoundError("No run directories found under .agent/runs")
+        raise FileNotFoundError("No completed run directories found under .agent/runs")
         
     run_dirs.sort(key=lambda x: x.name, reverse=True)
     return run_dirs[0]
@@ -317,6 +323,13 @@ Verify that the `agent-bridge run` CLI life cycle successfully executes, perform
     for r in report.risks:
         risks_content += f"- {r}\n"
     write_text(run_dir / "risks.md", risks_content)
+
+    marker_content = {
+        "run_id": run_id,
+        "completed_at": datetime.datetime.now().isoformat(),
+        "status": report.status,
+        "verdict": report.verdict,
+    }
+    write_json(run_dir / COMPLETED_MARKER, marker_content)
     
     return run_id
-
