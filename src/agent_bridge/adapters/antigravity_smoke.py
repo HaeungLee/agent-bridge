@@ -230,14 +230,24 @@ def _scan_scratch_files() -> dict[Path, float]:
 
 
 def _read_new_scratch_text(before: dict[Path, float], after: dict[Path, float]) -> str:
+    # 1. Primary: Detect newly created or explicitly modified files
     changed = [
         path for path, mtime in after.items()
         if path not in before or mtime > before[path]
     ]
-    if not changed:
-        return ""
-    newest = sorted(changed, key=lambda path: after[path])[-1]
-    return _read_text(newest, limit=12_000)
+    if changed:
+        newest = sorted(changed, key=lambda path: after[path])[-1]
+        return _read_text(newest, limit=12_000)
+    
+    # 2. Fallback: On Windows NTFS, mtime updates can be delayed or throttled for identical writes.
+    # Retrieve the absolute newest file in the scratch folder regardless of pre-run mtime state.
+    if after:
+        newest = sorted(after.keys(), key=lambda path: after[path])[-1]
+        text = _read_text(newest, limit=12_000)
+        if text.strip():
+            return text
+            
+    return ""
 
 
 def _read_text(path: Path, limit: int) -> str:

@@ -34,12 +34,33 @@ def parse_pb(file_path: Path):
         except Exception:
             pass
             
-    print(f"\n--- Extracted Strings (Total: {len(strings)}) ---")
-    for idx, s in enumerate(strings):
-        # Strip non-ASCII to prevent terminal print errors
-        ascii_only = s.encode('ascii', errors='ignore').decode('ascii').strip()
-        if "AGENT_BRIDGE" in ascii_only:
-            print(f"Found match: {repr(ascii_only)}")
+    print(f"\n--- End of File Safe ASCII Dump (Last 5000 bytes) ---")
+    chunk_size = 5000
+    if len(data) > chunk_size:
+        subset = data[-chunk_size:]
+    else:
+        subset = data
+        
+    # Print in blocks of 80 characters for readability
+    lines = []
+    current_line = []
+    for b in subset:
+        if 32 <= b <= 126:
+            current_line.append(chr(b))
+        elif b in (10, 13):
+            current_line.append(" ") # replace newlines with space
+        else:
+            current_line.append(".")
+            
+        if len(current_line) >= 80:
+            lines.append("".join(current_line))
+            current_line = []
+            
+    if current_line:
+        lines.append("".join(current_line))
+        
+    for idx, line in enumerate(lines[-50:]):  # Print the last 50 lines
+        print(f"{idx:02d}: {line}")
 
 if __name__ == "__main__":
     pb_file = Path(r"C:\Users\Harry\.gemini\antigravity-cli\conversations\d9ed13c0-2028-4b36-8460-1125b019ffd7.pb")
