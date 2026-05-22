@@ -55,8 +55,21 @@ allowed_files = [
   "src/agent_bridge/cli.py",
 ]
 
-forbidden_files = [
+# Optional. If omitted, allowed_files is used for read checks.
+read_scope = [
   "docs/plan/agent_bridge_mvp.md",
+  "docs/plan/roadmap.md",
+  "src/agent_bridge/task_spec.py",
+  "src/agent_bridge/cli.py",
+]
+
+# Optional. If omitted, allowed_files is used for write/result checks.
+write_scope = [
+  "src/agent_bridge/task_spec.py",
+  "src/agent_bridge/cli.py",
+]
+
+forbidden_files = [
   ".git/**",
   ".agent/runs/**",
 ]
@@ -98,8 +111,9 @@ Required checks:
 - File pattern fields must not contain absolute paths.
 - File pattern fields must not contain parent traversal (`..`).
 - `allowed_files` and `forbidden_files` must not contain the same normalized pattern.
+- Optional `read_scope` and `write_scope` must be non-empty lists of relative file patterns when present.
+- `read_scope` and `write_scope` must not overlap `forbidden_files`.
 - `forbidden_files` should include at least:
-  - `docs/plan/agent_bridge_mvp.md`
   - `.git/**`
 - `hard_rules` should include at least:
   - `Do not commit.`
@@ -115,7 +129,7 @@ agent-bridge task check-result --spec <spec.toml> --workspace <path>
 
 The checker reads `git status --porcelain=v1 --untracked-files=all` from the workspace and verifies:
 
-- every changed file matches at least one `allowed_files` pattern
+- every changed file matches at least one `write_scope` pattern, or `allowed_files` if `write_scope` is absent
 - no changed file matches a `forbidden_files` pattern
 - untracked files are included
 - renamed files are checked by their destination path
@@ -134,12 +148,16 @@ Required sections:
 ## Metadata
 ## Objective
 ## Allowed Files
+## Read Scope
+## Write Scope
 ## Forbidden Files
 ## Required Commands
 ## Acceptance Criteria
 ## Hard Rules
 ## Expected Report
 ```
+
+`Read Scope` and `Write Scope` are rendered only when the spec defines them. `Allowed Files` remains the compatibility field for older specs and for agents that do not understand the split yet.
 
 The rendered prompt must repeat that the agent should only implement the task described in the spec and must not implement future phases.
 

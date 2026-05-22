@@ -28,8 +28,10 @@ REQUIRED_LIST_FIELDS = [
     "expected_report_sections",
 ]
 
-REQUIRED_FORBIDDEN_PATTERNS = ["docs/plan/agent_bridge_mvp.md", ".git/**"]
+REQUIRED_FORBIDDEN_PATTERNS = [".git/**"]
 REQUIRED_HARD_RULES = ["Do not commit.", "Do not implement the next phase."]
+OPTIONAL_SCOPE_FIELDS = ["read_scope", "write_scope"]
+WRITE_TOOLS = {"edit", "write", "patch", "multiedit"}
 
 
 @dataclass
@@ -86,7 +88,14 @@ def validate_task_spec(spec: dict[str, Any]) -> TaskSpecValidation:
     _validate_schema_version(spec)
     _validate_file_patterns(spec["allowed_files"], "allowed_files")
     _validate_file_patterns(spec["forbidden_files"], "forbidden_files")
+    for field in OPTIONAL_SCOPE_FIELDS:
+        if field in spec:
+            _validate_optional_scope(spec, field)
     _validate_no_pattern_overlap(spec["allowed_files"], spec["forbidden_files"])
+    if "read_scope" in spec:
+        _validate_no_pattern_overlap(spec["read_scope"], spec["forbidden_files"])
+    if "write_scope" in spec:
+        _validate_no_pattern_overlap(spec["write_scope"], spec["forbidden_files"])
     warnings.extend(_validate_recommended_guardrails(spec))
     return TaskSpecValidation(spec=spec, warnings=warnings)
 
@@ -114,6 +123,25 @@ def render_task_prompt(spec: dict[str, Any]) -> str:
         "",
         *_bullet_lines(spec["allowed_files"]),
         "",
+    ]
+
+    if "read_scope" in spec:
+        lines.extend([
+            "## Read Scope",
+            "",
+            *_bullet_lines(spec["read_scope"]),
+            "",
+        ])
+
+    if "write_scope" in spec:
+        lines.extend([
+            "## Write Scope",
+            "",
+            *_bullet_lines(spec["write_scope"]),
+            "",
+        ])
+
+    lines.extend([
         "## Forbidden Files",
         "",
         *_bullet_lines(spec["forbidden_files"]),
@@ -139,7 +167,7 @@ def render_task_prompt(spec: dict[str, Any]) -> str:
         "Implement only the task described above. Do not implement future phases, adjacent features, or optional integrations.",
         "If a required change appears to exceed the allowed files or hard rules, stop and report the blocker.",
         "",
-    ]
+    ])
 
     if validation.warnings:
         lines.extend(["## Validation Warnings", ""])
@@ -160,7 +188,7 @@ def check_task_result(spec: dict[str, Any], workspace_path: Path) -> ResultCheck
     validation = validate_task_spec(spec)
     spec = validation.spec
     changed_files = collect_git_changed_files(workspace_path)
-    allowed = [_normalize_pattern(item) for item in spec["allowed_files"]]
+    allowed = _scope_patterns(spec, "write_scope")
     forbidden = [_normalize_pattern(item) for item in spec["forbidden_files"]]
 
     forbidden_matches: list[str] = []
@@ -188,7 +216,8 @@ def check_run_tool_use(spec: dict[str, Any], run_dir: Path, workspace_path: Path
         raise FileNotFoundError(f"Missing raw stdout artifact: {raw_stdout_path}")
 
     tool_uses = extract_tool_uses(raw_stdout_path.read_text(encoding="utf-8"))
-    allowed = [_normalize_pattern(item) for item in spec["allowed_files"]]
+    read_allowed = _scope_patterns(spec, "read_scope")
+    write_allowed = _scope_patterns(spec, "write_scope")
     forbidden = [_normalize_pattern(item) for item in spec["forbidden_files"]]
 
     forbidden_matches: list[str] = []
@@ -198,8 +227,7 @@ def check_run_tool_use(spec: dict[str, Any], run_dir: Path, workspace_path: Path
 
     for tool_use in tool_uses:
         tool = str(tool_use.get("tool") or "")
-        if tool.lower() in {"edit", "write", "patch", "multiedit"}:
-            write_tool_uses.append(tool)
+        is_write_tool = tool.lower() in WRITE_TOOLS
         for raw_path in _tool_use_paths(tool_use):
             rel_path = _normalize_tool_path(raw_path, workspace)
             if not rel_path:
@@ -207,8 +235,12 @@ def check_run_tool_use(spec: dict[str, Any], run_dir: Path, workspace_path: Path
                 continue
             if _matches_any(rel_path, forbidden):
                 forbidden_matches.append(rel_path)
-            elif not _matches_any(rel_path, allowed):
+            elif is_write_tool and not _matches_any(rel_path, write_allowed):
                 out_of_scope_paths.append(rel_path)
+            elif not is_write_tool and not _matches_any(rel_path, read_allowed):
+                out_of_scope_paths.append(rel_path)
+        if is_write_tool and not _tool_use_paths(tool_use):
+            write_tool_uses.append(tool)
 
     return ToolUseCheck(
         tool_uses=tool_uses,
@@ -367,6 +399,16 @@ def _validate_required_lists(spec: dict[str, Any]) -> None:
                 raise ValueError(f"Field '{field}' item {index} must be a non-empty string")
 
 
+def _validate_optional_scope(spec: dict[str, Any], field: str) -> None:
+    value = spec[field]
+    if not isinstance(value, list) or not value:
+        raise ValueError(f"Field '{field}' must be a non-empty list when present")
+    for index, item in enumerate(value):
+        if not isinstance(item, str) or not item.strip():
+            raise ValueError(f"Field '{field}' item {index} must be a non-empty string")
+    _validate_file_patterns(value, field)
+
+
 def _validate_schema_version(spec: dict[str, Any]) -> None:
     if spec["schema_version"] != SCHEMA_VERSION:
         raise ValueError(
@@ -408,6 +450,11 @@ def _validate_recommended_guardrails(spec: dict[str, Any]) -> list[str]:
         if _normalize_pattern(pattern) not in forbidden:
             warnings.append(f"Recommended forbidden pattern missing: {pattern}")
 
+    if "write_scope" in spec:
+        write_scope = {_normalize_pattern(item) for item in spec["write_scope"]}
+        if _normalize_pattern("docs/plan/agent_bridge_mvp.md") in write_scope:
+            warnings.append("Canonical plan should not be in write_scope unless explicitly requested")
+
     for rule in REQUIRED_HARD_RULES:
         if rule.lower() not in hard_rules:
             warnings.append(f"Recommended hard rule missing: {rule}")
@@ -417,6 +464,13 @@ def _validate_recommended_guardrails(spec: dict[str, Any]) -> list[str]:
 
 def _normalize_pattern(pattern: str) -> str:
     return pattern.strip().replace("\\", "/").strip("/")
+
+
+def _scope_patterns(spec: dict[str, Any], field: str) -> list[str]:
+    values = spec.get(field)
+    if not isinstance(values, list) or not values:
+        values = spec["allowed_files"]
+    return [_normalize_pattern(item) for item in values]
 
 
 def _bullet_lines(items: list[str]) -> list[str]:

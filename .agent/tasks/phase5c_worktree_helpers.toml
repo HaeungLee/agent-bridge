@@ -17,9 +17,23 @@ allowed_files = [
   "docs/process/20260522_process.md",
 ]
 
-forbidden_files = [
+read_scope = [
   "docs/plan/agent_bridge_mvp.md",
   "docs/plan/roadmap.md",
+  "AGENTS.md",
+  "docs/worktree_execution_v0.md",
+  "src/agent_bridge/worktrees.py",
+  ".agent/tasks/phase5c_worktree_helpers.toml",
+  ".agent/tasks/phase5c_worktree_helpers.md",
+]
+
+write_scope = [
+  "src/agent_bridge/worktrees.py",
+  ".agent/tasks/phase5c_worktree_helpers.md",
+  "docs/process/20260522_process.md",
+]
+
+forbidden_files = [
   ".git/**",
   ".agent/runs/**",
   ".agent/metrics/**",
@@ -66,4 +80,3 @@ expected_report_sections = [
   "Open questions",
   "Next recommended step",
 ]
-

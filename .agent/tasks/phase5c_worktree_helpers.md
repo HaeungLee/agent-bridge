@@ -20,10 +20,24 @@ Implement the first isolated git worktree foundation for future write-capable su
 - .agent/tasks/phase5c_worktree_helpers.md
 - docs/process/20260522_process.md
 
-## Forbidden Files
+## Read Scope
 
 - docs/plan/agent_bridge_mvp.md
 - docs/plan/roadmap.md
+- AGENTS.md
+- docs/worktree_execution_v0.md
+- src/agent_bridge/worktrees.py
+- .agent/tasks/phase5c_worktree_helpers.toml
+- .agent/tasks/phase5c_worktree_helpers.md
+
+## Write Scope
+
+- src/agent_bridge/worktrees.py
+- .agent/tasks/phase5c_worktree_helpers.md
+- docs/process/20260522_process.md
+
+## Forbidden Files
+
 - .git/**
 - .agent/runs/**
 - .agent/metrics/**

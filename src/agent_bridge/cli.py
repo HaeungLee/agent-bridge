@@ -457,6 +457,10 @@ def cmd_task_validate(args):
     print(f"Slice   : {spec.get('slice')}")
     print(f"Title   : {spec.get('title')}")
     print(f"Allowed : {len(spec.get('allowed_files', []))} file patterns")
+    if "read_scope" in spec:
+        print(f"Read    : {len(spec.get('read_scope', []))} file patterns")
+    if "write_scope" in spec:
+        print(f"Write   : {len(spec.get('write_scope', []))} file patterns")
     print(f"Forbidden: {len(spec.get('forbidden_files', []))} file patterns")
     if result.warnings:
         print("Warnings:")
