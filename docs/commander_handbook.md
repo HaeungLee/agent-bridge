@@ -85,6 +85,7 @@ Kimi k2.6 through OpenCode/nanoGPT:
 
 - Useful for compact configuration reports.
 - Not yet reliable for strict read scope on source or gate-understanding tasks.
+- Current main subordinate path: `opencode_kimi_report` using `nano-gpt/moonshotai/kimi-k2.6`.
 - Must be followed by `task gate` or `check-tool-use`.
 
 Gemini and Antigravity:
@@ -96,8 +97,16 @@ Gemini and Antigravity:
 
 DeepSeek v4 Flash/Pro and Mimo v2.5 Pro:
 
-- Candidate models for 1M-context benchmark comparison.
-- Need the same read-only benchmark matrix before routing decisions.
+- Direct nanoGPT API smoke passed on 2026-05-22 for `deepseek/deepseek-v4-pro`, `nano-gpt/deepseek/deepseek-v4-pro`, `deepseek/deepseek-v4-flash`, `nano-gpt/deepseek/deepseek-v4-flash`, and `xiaomi/mimo-v2.5-pro`.
+- OpenCode cannot currently call those latest nanoGPT IDs because its model registry rejects them before the request reaches nanoGPT.
+- Treat these as future direct-API candidates, not current OpenCode subagents.
+
+OpenCode Zen fallback:
+
+- `opencode/deepseek-v4-flash-free` is callable through OpenCode and returned the smoke token on 2026-05-22.
+- Treat it as a free-quota fallback path, not the same candidate as nanoGPT DeepSeek v4 Flash/Pro.
+- Current fallback agent path: `opencode_deepseek_flash_free`.
+- Record separate routing evidence for OpenCode-hosted free models and nanoGPT-hosted paid/API models.
 
 ## Isolated Worktree Execution Direction
 
@@ -132,4 +141,3 @@ Codex evaluates subordinate output using factual criteria:
 - Model fitness: suited or unsuited for this class of task.
 
 Do not write subjective self-scores into process logs. Commander verdicts are reserved for Codex/human review.
-
