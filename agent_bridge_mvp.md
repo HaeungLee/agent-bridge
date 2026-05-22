@@ -25,7 +25,6 @@ The bridge exposes many agents as one stable command surface:
 ```text
 Codex -> agent-bridge -> runner/provider/model -> normalized report
 ```
-
 The commander should only need to know the bridge contract, not each agent's raw CLI/API details.
 
 ## 2. Why CLI First
@@ -53,33 +52,11 @@ Reasons:
 - Fast adapter development.
 - Strong subprocess and filesystem ergonomics.
 - Easy OpenAI-compatible API integration.
-- Good JSON/TOML/config ecosystem.
+- Good JSON/YAML/config ecosystem.
 - Simple packaging with `uv`.
 - Better fit for prompt templates, reports, and experimental metrics than Rust at this stage.
 
 Rust remains the long-term Moonlight control-plane language. Once contracts stabilize, Moonlight can absorb the bridge through a subprocess adapter, HTTP adapter, MCP server, or native Rust implementation.
-
-## 3.1 Dependency Policy
-
-The MVP is stdlib-first.
-
-Default choices:
-
-- Config format: TOML.
-- Config parser: Python 3.12 standard-library `tomllib`.
-- CLI parser: Python standard-library `argparse`.
-- JSON output: Python standard-library `json`.
-
-Do not add YAML parsing, Click, Typer, Pydantic, Rich, LiteLLM, or provider SDK dependencies in the scaffold phase.
-
-Rationale:
-
-- The bridge is primarily called by commander agents, not humans browsing an interactive CLI.
-- Predictable command behavior matters more than polished terminal UX.
-- Fewer dependencies make Antigravity/Gemini/OpenCode experiments easier to isolate.
-- TOML is also natural for Rust/Moonlight migration later.
-
-Dependencies can be added after the local contract proves useful.
 
 ## 4. Commander Role
 
@@ -139,28 +116,6 @@ Every run should produce:
 - `raw/`: raw transcripts, prompts, stderr, stdout.
 
 The commander reads `summary.md` and `decision_report.json` first. Raw files are inspected only for unclear, risky, or failing cases.
-
-## 6.1 Workspace Safety Policy
-
-MVP default:
-
-- Subagents must not edit the commander's active working tree directly.
-- Subagents may edit only an isolated temporary workspace or git worktree created for the run.
-- The bridge exports subagent changes as `patch.diff`.
-- The commander decides whether to apply the patch to the active workspace.
-
-Default flow:
-
-```text
-active repo
-  -> bridge creates temp workspace/worktree
-  -> subagent modifies temp workspace/worktree
-  -> bridge captures patch.diff
-  -> commander reviews compact report and selected diff
-  -> active repo changes only after approval
-```
-
-This keeps low-confidence or experimental agents useful without giving them direct authority over the user's main workspace.
 
 ## 7. Project Workflow
 
@@ -404,102 +359,6 @@ Bridge behavior:
 
 This preserves the user's existing workflow while keeping logs friendly to agents that read in 800-line chunks.
 
-## 7.7 AGENTS.md Contract
-
-The project must include an `AGENTS.md` file because Codex and other coding agents will use it as the local operating policy.
-
-The initial `AGENTS.md` must tell commander agents:
-
-- Read `agent_bridge_mvp.md` first.
-- Treat `agent_bridge_mvp.md` as the canonical plan.
-- Treat `roadmap.md` as mutable execution state.
-- Do not split or rewrite the canonical plan.
-- Use `agent-bridge` for external agent delegation once available.
-- Prefer `summary.md` and `decision_report.json` before raw logs.
-- Never auto-apply subagent patches.
-- Never let subagents edit the active workspace directly by default.
-- Never commit unless explicitly instructed.
-
-## 7.8 Task Spec Authoring and Canonicalization
-
-Long natural-language delegation prompts are acceptable during early manual experiments, but they are not the stable delegation interface.
-
-Stable delegation should move toward structured task specs:
-
-```text
-commander intent
-  -> authoring task spec
-  -> preflight validation
-  -> canonical task JSON
-  -> agent-specific prompt rendering
-  -> runner execution
-  -> result validation
-```
-
-Authoring format and canonical format are different:
-
-- Human/LLM-authored task specs may use Markdown plus fenced YAML because YAML is easier for LLMs to write and humans to edit.
-- The bridge should convert authoring specs into strict canonical JSON before execution.
-- Agents and runners should consume the canonical JSON, not the raw LLM-written text.
-- The canonical JSON must be schema-validated before any runner starts.
-
-Reasoning:
-
-- JSON is excellent for machine validation and downstream tooling.
-- Raw LLM-generated JSON is brittle because one missing comma or bracket can break parsing.
-- YAML-like authoring is more forgiving for early drafting, but still needs validation and canonicalization.
-
-MVP dependency note:
-
-- The scaffold remains stdlib-first and does not add YAML parsing yet.
-- YAML support belongs behind an explicit task-spec preprocessor phase.
-- Until then, task instructions can be written as Markdown and manually reviewed by the commander.
-
-Example future layout:
-
-```text
-.agent/tasks/phase3_mock_subprocess/
-  task.md          # human-readable instructions
-  task.author.yaml # LLM/human authoring format, later
-  task.json        # canonical validated execution spec
-```
-
-Future `task_spec.v0` should include:
-
-- `task_id`
-- `phase`
-- `title`
-- `agent`
-- `role`
-- `workspace`
-- `allowed_files`
-- `forbidden_files`
-- `hard_constraints`
-- `required_outputs`
-- `verification_commands`
-- `acceptance_checks`
-
-Preflight validation should reject:
-
-- Missing required fields.
-- Invalid JSON after canonicalization.
-- Forbidden files also listed as allowed.
-- Canonical plan modifications unless explicitly authorized.
-- Missing verification commands.
-- Overly broad workspace or file scope.
-- External API/CLI access in phases where it is forbidden.
-- `shell=True` or arbitrary command execution permissions.
-
-Result validation should check:
-
-- Required artifacts exist.
-- `decision_report.json` validates.
-- Process log was updated.
-- Roadmap updates stayed within the assigned phase.
-- Forbidden files were not modified.
-- Raw logs do not expose obvious secrets.
-- Verification commands passed or failures were represented as structured reports.
-
 ## 8. MVP Commands
 
 Initial CLI:
@@ -511,21 +370,6 @@ agent-bridge summarize --run latest
 agent-bridge compare --runs runA runB
 agent-bridge eval --run latest
 ```
-
-### 8.1 Doctor Checks
-
-`agent-bridge doctor` should check:
-
-- Python version.
-- Project root detection.
-- Required directories.
-- Required config files.
-- Writable `.agent/runs`.
-- Presence of canonical plan and roadmap.
-- Whether configured runner commands exist on `PATH`.
-- Whether required API keys are present, without printing secrets.
-
-Missing optional external runners or API keys should warn, not fail, during the MVP.
 
 Optional later commands:
 
@@ -545,9 +389,9 @@ agent-bridge/
   README.md
   AGENTS.md
   config/
-    agents.toml
-    runners.toml
-    providers.toml
+    agents.yaml
+    runners.yaml
+    providers.yaml
   docs/
     plan.md
     roadmap.md
@@ -596,44 +440,45 @@ Run directory:
 
 ## 10. Agent Configuration
 
-Example `config/agents.toml`:
+Example `config/agents.yaml`:
 
-```toml
-[agents.glm_review]
-runner = "opencode"
-provider = "nanogpt"
-model = "glm-5.2"
-role = "code_review"
-default_mode = "review"
-max_cost_usd = 1.0
-output_contract = "review_v1"
+```yaml
+agents:
+  glm_review:
+    runner: opencode
+    provider: nanogpt
+    model: glm-5.2
+    role: code_review
+    default_mode: review
+    max_cost_usd: 1.0
+    output_contract: review_v1
 
-[agents.kimi_impl]
-runner = "opencode"
-provider = "nanogpt"
-model = "kimi-k2.6"
-role = "implementation"
-default_mode = "patch"
-max_cost_usd = 2.0
-output_contract = "patch_v1"
+  kimi_impl:
+    runner: opencode
+    provider: nanogpt
+    model: kimi-k2.6
+    role: implementation
+    default_mode: patch
+    max_cost_usd: 2.0
+    output_contract: patch_v1
 
-[agents.deepseek_investigate]
-runner = "opencode"
-provider = "nanogpt"
-model = "deepseek-v4"
-role = "bug_investigation"
-default_mode = "report"
-max_cost_usd = 1.5
-output_contract = "investigation_v1"
+  deepseek_investigate:
+    runner: opencode
+    provider: nanogpt
+    model: deepseek-v4
+    role: bug_investigation
+    default_mode: report
+    max_cost_usd: 1.5
+    output_contract: investigation_v1
 
-[agents.grok_arch]
-runner = "raw_openai"
-provider = "xai"
-model = "grok"
-role = "architecture_critique"
-default_mode = "report"
-max_cost_usd = 1.5
-output_contract = "critique_v1"
+  grok_arch:
+    runner: raw_openai
+    provider: xai
+    model: grok
+    role: architecture_critique
+    default_mode: report
+    max_cost_usd: 1.5
+    output_contract: critique_v1
 ```
 
 ## 11. Measurement and Error Tracking
@@ -657,41 +502,6 @@ Each run records:
 - Token usage if available.
 - Commander verdict.
 - User verdict if available.
-
-### 11.1.1 Decision Report v0
-
-Every run should produce a minimal `decision_report.json` from the start of the project.
-
-Initial schema:
-
-```json
-{
-  "schema_version": "decision_report.v0",
-  "run_id": "",
-  "agent": "",
-  "runner": "",
-  "provider": "",
-  "model": "",
-  "role": "",
-  "mode": "",
-  "status": "completed|failed|timeout|blocked",
-  "verdict": "PASS|FIX_REQUIRED|NEEDS_DECISION|BLOCKED",
-  "summary": "",
-  "files_inspected": [],
-  "files_changed": [],
-  "commands_run": [],
-  "tests": {
-    "status": "pass|fail|not_run|unknown",
-    "summary": ""
-  },
-  "risks": [],
-  "open_questions": [],
-  "next_action": "",
-  "confidence": null
-}
-```
-
-The schema can evolve later, but the project should have a fixed structured output shape from the first scaffold.
 
 ### 11.2 Error Categories
 
@@ -842,7 +652,7 @@ Migration path:
 
 ### Milestone 2: First Runner
 
-- Mock subprocess runner adapter.
+- OpenCode runner adapter.
 - Raw subprocess capture.
 - Prompt template.
 - Report normalization.
@@ -858,7 +668,6 @@ Migration path:
 
 ### Milestone 4: Multi-Runner
 
-- OpenCode runner adapter.
 - Raw OpenAI-compatible runner.
 - xAI/nanoGPT/OpenRouter provider configs.
 - Claude Code or Gemini CLI runner if available.

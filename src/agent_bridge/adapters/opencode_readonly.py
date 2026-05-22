@@ -89,13 +89,13 @@ def _run_opencode(request: dict[str, Any]) -> dict[str, Any]:
     result = subprocess.run(
         cmd,
         capture_output=True,
-        text=True,
+        text=False,
         timeout=timeout_ms / 1000.0,
         shell=False,
     )
     elapsed_ms = int((time.time() - started) * 1000)
-    stdout = result.stdout or ""
-    stderr = result.stderr or ""
+    stdout = _decode_process_output(result.stdout)
+    stderr = _decode_process_output(result.stderr)
 
     opencode_error = _extract_opencode_error(stdout)
     text_output = _extract_opencode_text(stdout)
@@ -160,6 +160,14 @@ def _build_message(task_prompt: str, has_session: bool) -> str:
 
 def _truthy_env(name: str) -> bool:
     return os.environ.get(name, "").strip().lower() in {"1", "true", "yes"}
+
+
+def _decode_process_output(value: bytes | str | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    return value.decode("utf-8", errors="replace")
 
 
 def _compact_report_message(task_prompt: str) -> str:

@@ -84,10 +84,10 @@ def _run_antigravity(request: dict[str, Any]) -> dict[str, Any]:
     result = subprocess.run(
         cmd,
         capture_output=True,
-        text=True,
+        text=False,
         timeout=timeout_ms / 1000.0,
         shell=False,
-        input="",
+        input=b"",
     )
     elapsed_ms = int((time.time() - started) * 1000)
     after_sessions = _scan_sessions()
@@ -98,8 +98,8 @@ def _run_antigravity(request: dict[str, Any]) -> dict[str, Any]:
     if observed_session_id and session_policy == "continue_named":
         _write_session_state(workspace, session_name, observed_session_id)
 
-    stdout = result.stdout or ""
-    stderr = result.stderr or ""
+    stdout = _decode_process_output(result.stdout)
+    stderr = _decode_process_output(result.stderr)
 
     empty_output = not stdout.strip() and not stderr.strip()
     missing_smoke_token = direct_smoke and (SMOKE_TOKEN not in stdout)
@@ -147,6 +147,14 @@ def _first_filesystem_scope(constraints: dict[str, Any]) -> str:
     if isinstance(scope, list) and scope:
         return str(scope[0])
     return ""
+
+
+def _decode_process_output(value: bytes | str | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    return value.decode("utf-8", errors="replace")
 
 
 def _scan_sessions() -> set[str]:
