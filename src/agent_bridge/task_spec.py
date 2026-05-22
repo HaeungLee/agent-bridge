@@ -31,6 +31,21 @@ REQUIRED_LIST_FIELDS = [
 REQUIRED_FORBIDDEN_PATTERNS = [".git/**"]
 REQUIRED_HARD_RULES = ["Do not commit.", "Do not implement the next phase."]
 OPTIONAL_SCOPE_FIELDS = ["read_scope", "write_scope"]
+OPTIONAL_FILE_LIST_FIELDS = [*OPTIONAL_SCOPE_FIELDS, "expected_artifacts"]
+DEFAULT_EXPECTED_ARTIFACTS = [
+    "summary.md",
+    "decision_report.json",
+    "diffstat.txt",
+    "touched_files.json",
+    "tests.md",
+    "risks.md",
+    "process.md",
+    "metrics.json",
+    "request.json",
+    "completed.marker",
+    "raw/stdout.txt",
+    "raw/stderr.txt",
+]
 WRITE_TOOLS = {"edit", "write", "patch", "multiedit"}
 
 
@@ -69,6 +84,16 @@ class ToolUseCheck:
         )
 
 
+@dataclass
+class ArtifactCheck:
+    expected_artifacts: list[str]
+    missing_artifacts: list[str]
+
+    @property
+    def passed(self) -> bool:
+        return not self.missing_artifacts
+
+
 def load_task_spec(path: Path) -> dict[str, Any]:
     if not path.exists():
         raise FileNotFoundError(f"Task spec does not exist: {path}")
@@ -88,9 +113,9 @@ def validate_task_spec(spec: dict[str, Any]) -> TaskSpecValidation:
     _validate_schema_version(spec)
     _validate_file_patterns(spec["allowed_files"], "allowed_files")
     _validate_file_patterns(spec["forbidden_files"], "forbidden_files")
-    for field in OPTIONAL_SCOPE_FIELDS:
+    for field in OPTIONAL_FILE_LIST_FIELDS:
         if field in spec:
-            _validate_optional_scope(spec, field)
+            _validate_optional_file_list(spec, field)
     _validate_no_pattern_overlap(spec["allowed_files"], spec["forbidden_files"])
     if "read_scope" in spec:
         _validate_no_pattern_overlap(spec["read_scope"], spec["forbidden_files"])
@@ -138,6 +163,14 @@ def render_task_prompt(spec: dict[str, Any]) -> str:
             "## Write Scope",
             "",
             *_bullet_lines(spec["write_scope"]),
+            "",
+        ])
+
+    if "expected_artifacts" in spec:
+        lines.extend([
+            "## Expected Artifacts",
+            "",
+            *_bullet_lines(spec["expected_artifacts"]),
             "",
         ])
 
@@ -249,6 +282,14 @@ def check_run_tool_use(spec: dict[str, Any], run_dir: Path, workspace_path: Path
         outside_workspace_paths=sorted(set(outside_workspace_paths)),
         write_tool_uses=sorted(set(write_tool_uses)),
     )
+
+
+def check_run_artifacts(spec: dict[str, Any], run_dir: Path) -> ArtifactCheck:
+    validation = validate_task_spec(spec)
+    spec = validation.spec
+    expected = _expected_artifacts(spec)
+    missing = [artifact for artifact in expected if not (run_dir / artifact).exists()]
+    return ArtifactCheck(expected_artifacts=expected, missing_artifacts=missing)
 
 
 def extract_tool_uses(raw_stdout: str) -> list[dict[str, Any]]:
@@ -399,7 +440,7 @@ def _validate_required_lists(spec: dict[str, Any]) -> None:
                 raise ValueError(f"Field '{field}' item {index} must be a non-empty string")
 
 
-def _validate_optional_scope(spec: dict[str, Any], field: str) -> None:
+def _validate_optional_file_list(spec: dict[str, Any], field: str) -> None:
     value = spec[field]
     if not isinstance(value, list) or not value:
         raise ValueError(f"Field '{field}' must be a non-empty list when present")
@@ -470,6 +511,13 @@ def _scope_patterns(spec: dict[str, Any], field: str) -> list[str]:
     values = spec.get(field)
     if not isinstance(values, list) or not values:
         values = spec["allowed_files"]
+    return [_normalize_pattern(item) for item in values]
+
+
+def _expected_artifacts(spec: dict[str, Any]) -> list[str]:
+    values = spec.get("expected_artifacts")
+    if not isinstance(values, list) or not values:
+        values = DEFAULT_EXPECTED_ARTIFACTS
     return [_normalize_pattern(item) for item in values]
 
 

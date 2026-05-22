@@ -597,7 +597,7 @@ def cmd_task_gate(args):
     """
     from agent_bridge.config import find_project_root
     from agent_bridge.runs import find_latest_run
-    from agent_bridge.task_spec import check_run_tool_use, load_task_spec
+    from agent_bridge.task_spec import check_run_artifacts, check_run_tool_use, load_task_spec
     import json
 
     root = find_project_root()
@@ -620,7 +620,9 @@ def cmd_task_gate(args):
         if status != "completed":
             raise ValueError(f"Run status is not completed: {status}")
 
-        tool_result = check_run_tool_use(load_task_spec(spec_path), run_dir, workspace_path)
+        spec = load_task_spec(spec_path)
+        artifact_result = check_run_artifacts(spec, run_dir)
+        tool_result = check_run_tool_use(spec, run_dir, workspace_path)
     except Exception as e:
         print(f"[FAIL] Task gate failed: {e}", file=sys.stderr)
         sys.exit(1)
@@ -632,6 +634,11 @@ def cmd_task_gate(args):
     print(f"Run       : {run_dir.name}")
     print(f"Workspace : {workspace_path}")
     print(f"Status    : {status}")
+    print(f"Artifacts : {len(artifact_result.expected_artifacts)} expected")
+    if artifact_result.missing_artifacts:
+        print("Missing artifacts:")
+        for path in artifact_result.missing_artifacts:
+            print(f"  - {path}")
     print(f"Tool uses : {len(tool_result.tool_uses)}")
     if tool_result.write_tool_uses:
         print("Write-capable tool violations:")
@@ -650,7 +657,7 @@ def cmd_task_gate(args):
         for path in tool_result.outside_workspace_paths:
             print(f"  - {path}")
     print("==================================================")
-    if tool_result.passed:
+    if artifact_result.passed and tool_result.passed:
         print("[OK] task gate passed")
         sys.exit(0)
     print("[FAIL] task gate rejected run", file=sys.stderr)

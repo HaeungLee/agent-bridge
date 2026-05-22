@@ -69,6 +69,22 @@ write_scope = [
   "src/agent_bridge/cli.py",
 ]
 
+# Optional. If omitted, the standard run artifact contract is checked.
+expected_artifacts = [
+  "summary.md",
+  "decision_report.json",
+  "diffstat.txt",
+  "touched_files.json",
+  "tests.md",
+  "risks.md",
+  "process.md",
+  "metrics.json",
+  "request.json",
+  "completed.marker",
+  "raw/stdout.txt",
+  "raw/stderr.txt",
+]
+
 forbidden_files = [
   ".git/**",
   ".agent/runs/**",
@@ -113,6 +129,7 @@ Required checks:
 - `allowed_files` and `forbidden_files` must not contain the same normalized pattern.
 - Optional `read_scope` and `write_scope` must be non-empty lists of relative file patterns when present.
 - `read_scope` and `write_scope` must not overlap `forbidden_files`.
+- Optional `expected_artifacts` must be a non-empty list of relative run artifact paths when present.
 - `forbidden_files` should include at least:
   - `.git/**`
 - `hard_rules` should include at least:
@@ -136,7 +153,41 @@ The checker reads `git status --porcelain=v1 --untracked-files=all` from the wor
 
 The result checker is intentionally simple. It does not parse patches, inspect line-level edits, or apply policy to ignored generated output.
 
-## 6. Rendered Prompt
+## 6. Task Gate
+
+The standard post-run gate checks the normalized run contract before commander review:
+
+```text
+agent-bridge task gate --spec <spec.toml> --run <run_id_or_latest> --workspace <path>
+```
+
+The gate requires:
+
+- `decision_report.json` exists and has `status = "completed"`
+- every expected artifact exists in the run directory
+- tool-use paths stay inside `read_scope` / `write_scope`
+- no tool-use path matches `forbidden_files`
+
+If `expected_artifacts` is omitted, the gate checks the default MVP artifact contract:
+
+```text
+summary.md
+decision_report.json
+diffstat.txt
+touched_files.json
+tests.md
+risks.md
+process.md
+metrics.json
+request.json
+completed.marker
+raw/stdout.txt
+raw/stderr.txt
+```
+
+Write-capable tasks may add stricter task-specific artifacts such as `patch.diff` or `worktree.json` once the corresponding runner contract exists.
+
+## 7. Rendered Prompt
 
 The rendered Markdown prompt should be deterministic and boring. It is an execution contract, not a motivational document.
 
@@ -157,11 +208,11 @@ Required sections:
 ## Expected Report
 ```
 
-`Read Scope` and `Write Scope` are rendered only when the spec defines them. `Allowed Files` remains the compatibility field for older specs and for agents that do not understand the split yet.
+`Read Scope`, `Write Scope`, and `Expected Artifacts` are rendered only when the spec defines them. `Allowed Files` remains the compatibility field for older specs and for agents that do not understand the split yet.
 
 The rendered prompt must repeat that the agent should only implement the task described in the spec and must not implement future phases.
 
-## 7. Non-Goals
+## 8. Non-Goals
 
 Do not implement these in v0:
 
@@ -174,7 +225,7 @@ Do not implement these in v0:
 - line-level diff validation
 - process rollover generation
 
-## 8. Next Step
+## 9. Next Step
 
 Implement:
 

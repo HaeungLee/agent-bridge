@@ -96,3 +96,20 @@ AGENT_BRIDGE_ANTIGRAVITY_PRINT_TIMEOUT = "60s"
 AGENT_BRIDGE_ANTIGRAVITY_DIRECT_SMOKE = "true"
 AGENT_BRIDGE_ANTIGRAVITY_SESSION_POLICY = "continue_named"
 AGENT_BRIDGE_ANTIGRAVITY_SESSION_NAME = "antigravity_bridge_smoke_agent"
+
+[runners.cli_adapter.adapters.antigravity_xml]
+command = "python"
+args = ["-m", "agent_bridge.adapters.antigravity_smoke"]
+allowlist = ["python", "python.exe"]
+timeout_ms = 120000
+
+[runners.cli_adapter.adapters.antigravity_xml.env]
+PYTHONPATH = "src"
+AGENT_BRIDGE_ANTIGRAVITY_COMMAND = "C:\\Users\\Harry\\AppData\\Local\\agy\\bin\\agy.exe"
+AGENT_BRIDGE_ANTIGRAVITY_TIMEOUT_MS = "120000"
+AGENT_BRIDGE_ANTIGRAVITY_PRINT_TIMEOUT = "120s"
+AGENT_BRIDGE_ANTIGRAVITY_DIRECT_SMOKE = "false"
+AGENT_BRIDGE_ANTIGRAVITY_FORMAT = "xml"
+AGENT_BRIDGE_ANTIGRAVITY_SESSION_POLICY = "continue_named"
+AGENT_BRIDGE_ANTIGRAVITY_SESSION_NAME = "antigravity_bridge_xml_agent"
+

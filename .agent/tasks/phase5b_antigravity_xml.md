@@ -1,0 +1,75 @@
+# Task: Run Antigravity read-only adapter XML E2E smoke
+
+## Metadata
+
+- Schema: task_spec.v0
+- Task ID: phase5b-antigravity-xml
+- Phase: Phase 5
+- Slice: Antigravity CLI Adapter XML E2E Smoke
+- Owner: commander
+
+## Objective
+
+Verify that agent-bridge can invoke Antigravity through a cli_adapter shim in XML report mode, deliver the XML requirement guidelines, capture the generated scratch response.xml file, verify it through the self-healing XML parser, and confirm that the decision report maps the parsed metrics correctly.
+
+## Allowed Files
+
+- config/agents.toml
+- config/runners.toml
+- .gitignore
+- src/agent_bridge/cli.py
+- src/agent_bridge/runs.py
+- src/agent_bridge/runners/base.py
+- src/agent_bridge/runners/cli_adapter.py
+- src/agent_bridge/adapters/__init__.py
+- src/agent_bridge/adapters/antigravity_smoke.py
+- .agent/tasks/phase5b_antigravity_xml.toml
+- .agent/tasks/phase5b_antigravity_xml.md
+- docs/process/20260522_process.md
+- docs/plan/roadmap.md
+
+## Forbidden Files
+
+- docs/plan/agent_bridge_mvp.md
+- .git/**
+- .agent/runs/**
+- .agent/metrics/**
+- .agent/sessions/*.json
+
+## Required Commands
+
+- uv run agent-bridge task validate --spec .agent/tasks/phase5b_antigravity_xml.toml
+- uv run agent-bridge task render --spec .agent/tasks/phase5b_antigravity_xml.toml --out .agent/tasks/phase5b_antigravity_xml.md
+- uv run agent-bridge run --agent antigravity_xml --task .agent/tasks/phase5b_antigravity_xml.md --workspace .
+- uv run agent-bridge summarize --run latest
+- uv run agent-bridge task gate --spec .agent/tasks/phase5b_antigravity_xml.toml --run latest --workspace .
+- uv run agent-bridge doctor
+
+## Acceptance Criteria
+
+- Antigravity is invoked in XML mode using AGENT_BRIDGE_ANTIGRAVITY_FORMAT=xml.
+- XML guidelines are successfully delivered to the model.
+- Successful E2E requires the Antigravity scratch directory to contain an XML file conforming to agent-bridge.report.v0.
+- Run artifacts include decision_report.json, xml_report_parsed, raw/stdout.txt, and completed.marker.
+- The adapter remains read-only and does not modify active codebase files.
+
+## Hard Rules
+
+- Do not commit.
+- Do not implement the next phase.
+- Do not enable write-capable Antigravity execution.
+- Do not add runtime dependencies.
+
+## Expected Report
+
+- Changed files
+- Commands run
+- Result
+- Risks
+- Open questions
+- Next recommended step
+
+## Execution Boundary
+
+Implement only the task described above. Do not implement future phases, adjacent features, or optional integrations.
+If a required change appears to exceed the allowed files or hard rules, stop and report the blocker.

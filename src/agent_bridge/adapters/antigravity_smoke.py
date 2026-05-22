@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -55,6 +56,7 @@ def _run_antigravity(request: dict[str, Any]) -> dict[str, Any]:
     timeout_ms = int(os.environ.get("AGENT_BRIDGE_ANTIGRAVITY_TIMEOUT_MS", "60000"))
     print_timeout = os.environ.get("AGENT_BRIDGE_ANTIGRAVITY_PRINT_TIMEOUT", "60s").strip()
     direct_smoke = os.environ.get("AGENT_BRIDGE_ANTIGRAVITY_DIRECT_SMOKE", "").strip().lower() in {"1", "true", "yes"}
+    output_format = os.environ.get("AGENT_BRIDGE_ANTIGRAVITY_FORMAT", "text").strip().lower()
     session_policy = os.environ.get("AGENT_BRIDGE_ANTIGRAVITY_SESSION_POLICY", "new").strip() or "new"
     session_name = os.environ.get("AGENT_BRIDGE_ANTIGRAVITY_SESSION_NAME", "").strip() or "default"
     explicit_session_id = os.environ.get("AGENT_BRIDGE_ANTIGRAVITY_SESSION_ID", "").strip()
@@ -63,6 +65,37 @@ def _run_antigravity(request: dict[str, Any]) -> dict[str, Any]:
     session_reused = bool(session_id)
 
     task_prompt = str(payload.get("task_prompt") or "")
+    
+    XML_GUIDELINE = (
+        "\n\n[CRITICAL REQUIREMENT - XML REPORT FORMAT]\n"
+        "You must record your final report in XML format inside the scratch directory. "
+        "Create a file named 'response.xml' or similar in the scratch directory. "
+        "The file content must be wrapped in an <agent_report> root element. "
+        "Do not use markdown blocks (e.g. ```xml) around the XML file content itself. "
+        "Inside the XML, include the following tags exactly:\n"
+        "<agent_report version=\"agent-bridge.report.v0\">\n"
+        "  <status>completed or failed</status>\n"
+        "  <summary>A concise summary containing AGENT_BRIDGE_ANTIGRAVITY_SMOKE_OK</summary>\n"
+        "  <files_inspected>\n"
+        "    <file>path/to/inspected/file</file>\n"
+        "  </files_inspected>\n"
+        "  <files_changed>\n"
+        "    <file>path/to/changed/file</file>\n"
+        "  </files_changed>\n"
+        "  <commands_run>\n"
+        "    <command>run command</command>\n"
+        "  </commands_run>\n"
+        "  <risks>\n"
+        "    <risk>identified risk</risk>\n"
+        "  </risks>\n"
+        "  <open_questions>\n"
+        "    <question>open question</question>\n"
+        "  </open_questions>\n"
+        "  <next_step>next step</next_step>\n"
+        "</agent_report>\n"
+        "Use <![CDATA[...]]> for any values containing special XML characters to prevent syntax breakdown."
+    )
+
     if direct_smoke:
         if session_reused:
             message = (
@@ -77,6 +110,8 @@ def _run_antigravity(request: dict[str, Any]) -> dict[str, Any]:
             )
     else:
         message = task_prompt or f"Remember this smoke token for the next turn: {SMOKE_TOKEN}. Reply with exactly: {SMOKE_TOKEN}"
+        if output_format == "xml":
+            message += XML_GUIDELINE
 
     log_path = _new_temp_log_path()
 
@@ -121,43 +156,70 @@ def _run_antigravity(request: dict[str, Any]) -> dict[str, Any]:
     stdout = _decode_process_output(result.stdout)
     stderr = _decode_process_output(result.stderr)
     scratch_text = _read_new_scratch_text(before_scratch, after_scratch)
-    combined_output = "\n".join(part for part in (stdout, scratch_text) if part.strip())
 
-    empty_output = not stdout.strip() and not stderr.strip()
-    missing_smoke_token = direct_smoke and (SMOKE_TOKEN not in combined_output)
+    # Attempt to parse XML report
+    xml_data = _try_parse_xml_report(scratch_text)
 
-    ok = result.returncode == 0 and bool(combined_output.strip()) and not missing_smoke_token
-    summary = f"Antigravity smoke exited {result.returncode}."
-    if combined_output.strip():
-        summary += f" Response: {combined_output.strip().replace('\n', ' ')[:240]}"
+    if xml_data:
+        xml_summary = xml_data.get("summary", "")
+        xml_status = xml_data.get("status", "").strip().lower()
+        status_ok = xml_status == "completed"
+        missing_smoke_token = SMOKE_TOKEN not in xml_summary
 
-    if empty_output and not scratch_text.strip():
-        summary = "Antigravity exited but produced no stdout, stderr, or readable scratch output."
-    elif missing_smoke_token:
-        summary = f"Antigravity output did not include required smoke token {SMOKE_TOKEN}."
+        ok = result.returncode == 0 and status_ok and not missing_smoke_token
+        summary = f"Antigravity smoke exited {result.returncode} with XML report."
+        if xml_summary:
+            summary += f" Response: {xml_summary.replace('\n', ' ')[:240]}"
+        if not status_ok:
+            summary = f"Antigravity XML report status was not completed: {xml_status}."
+        elif missing_smoke_token:
+            summary = f"Antigravity XML report did not include required smoke token {SMOKE_TOKEN}."
+            
+        combined_output = xml_summary
+    else:
+        combined_output = "\n".join(part for part in (stdout, scratch_text) if part.strip())
+        empty_output = not stdout.strip() and not stderr.strip()
+        missing_smoke_token = direct_smoke and (SMOKE_TOKEN not in combined_output)
+
+        ok = result.returncode == 0 and bool(combined_output.strip()) and not missing_smoke_token
+        summary = f"Antigravity smoke exited {result.returncode}."
+        if combined_output.strip():
+            summary += f" Response: {combined_output.strip().replace('\n', ' ')[:240]}"
+
+        if empty_output and not scratch_text.strip():
+            summary = "Antigravity exited but produced no stdout, stderr, or readable scratch output."
+        elif missing_smoke_token:
+            summary = f"Antigravity output did not include required smoke token {SMOKE_TOKEN}."
+
+    run_artifacts = [
+        {
+            "kind": "stdout_preview",
+            "text": stdout,
+        },
+        {
+            "kind": "stderr_preview",
+            "text": stderr,
+        },
+        {
+            "kind": "antigravity_log_preview",
+            "text": log_text,
+        },
+        {
+            "kind": "antigravity_scratch_preview",
+            "text": scratch_text,
+        },
+    ]
+    if xml_data:
+        run_artifacts.append({
+            "kind": "xml_report_parsed",
+            "text": json.dumps(xml_data, indent=2, ensure_ascii=False),
+        })
 
     return {
         "ok": ok,
         "run_status": "completed" if ok else "failed",
         "summary": summary,
-        "artifacts": [
-            {
-                "kind": "stdout_preview",
-                "text": stdout,
-            },
-            {
-                "kind": "stderr_preview",
-                "text": stderr,
-            },
-            {
-                "kind": "antigravity_log_preview",
-                "text": log_text,
-            },
-            {
-                "kind": "antigravity_scratch_preview",
-                "text": scratch_text,
-            },
-        ],
+        "artifacts": run_artifacts,
         "metrics": {
             "elapsed_ms": elapsed_ms,
             "cost_usd": 0.0,
@@ -186,6 +248,73 @@ def _decode_process_output(value: bytes | str | None) -> str:
     if isinstance(value, str):
         return value
     return value.decode("utf-8", errors="replace")
+
+
+def _try_parse_xml_report(text: str) -> dict[str, Any] | None:
+    if not text or "<agent_report" not in text:
+        return None
+
+    clean_text = text.strip()
+    if clean_text.startswith("```"):
+        clean_text = re.sub(r"^```[a-zA-Z]*\n", "", clean_text)
+        clean_text = re.sub(r"\n```$", "", clean_text)
+        clean_text = clean_text.strip()
+
+    def extract_tag_content(tag_name: str, default: str = "") -> str:
+        pattern = rf"<{tag_name}(?:\s+[^>]*)?>(?:<!\[CDATA\[(.*?)\]\]>|([^<]*))</{tag_name}>"
+        match = re.search(pattern, clean_text, re.DOTALL)
+        if match:
+            cdata, plain = match.groups()
+            return (cdata if cdata is not None else plain or "").strip()
+
+        fallback_pattern = rf"<{tag_name}(?:\s+[^>]*)?>(?:<!\[CDATA\[(.*?)\]\]>|([^<]*))"
+        match = re.search(fallback_pattern, clean_text, re.DOTALL)
+        if match:
+            cdata, plain = match.groups()
+            val = (cdata if cdata is not None else plain or "").strip()
+            if "<" in val:
+                val = val.split("<")[0].strip()
+            return val
+        return default
+
+    def extract_list_tag_content(parent_tag: str, child_tag: str) -> list[str]:
+        parent_pattern = rf"<{parent_tag}(?:\s+[^>]*)?>(.*?)</{parent_tag}>"
+        parent_match = re.search(parent_pattern, clean_text, re.DOTALL)
+        content_area = parent_match.group(1) if parent_match else clean_text
+
+        child_pattern = rf"<{child_tag}(?:\s+[^>]*)?>(?:<!\[CDATA\[(.*?)\]\]>|([^<]*))</{child_tag}>"
+        items = re.findall(child_pattern, content_area, re.DOTALL)
+        results = []
+        for cdata, plain in items:
+            results.append((cdata if cdata else plain or "").strip())
+        return results
+
+    try:
+        status = extract_tag_content("status")
+        summary = extract_tag_content("summary")
+        next_step = extract_tag_content("next_step")
+
+        if not status and not summary:
+            return None
+
+        files_inspected = extract_list_tag_content("files_inspected", "file")
+        files_changed = extract_list_tag_content("files_changed", "file")
+        commands_run = extract_list_tag_content("commands_run", "command")
+        risks = extract_list_tag_content("risks", "risk")
+        open_questions = extract_list_tag_content("open_questions", "question")
+
+        return {
+            "status": status,
+            "summary": summary,
+            "files_inspected": files_inspected,
+            "files_changed": files_changed,
+            "commands_run": commands_run,
+            "risks": risks,
+            "open_questions": open_questions,
+            "next_step": next_step
+        }
+    except Exception:
+        return None
 
 
 def _new_temp_log_path() -> Path:
