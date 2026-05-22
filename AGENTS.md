@@ -4,9 +4,9 @@ Welcome, Agent. If you are reading this, you have been delegated a task within t
 
 ## 1. General Principles
 
-- **Read the Canonical Plan First**: Always read `agent_bridge_mvp.md` before making any structural or architectural decisions. It is the single source of truth for design direction.
-- **Do Not Split or Rewrite the Plan**: Keep `agent_bridge_mvp.md` as one single, canonical file. Do not partition it by date, phase, or agent.
-- **Roadmap as Execution State**: Treat `roadmap.md` as mutable execution state. Use it to track phases, milestones, active tasks, and blockers.
+- **Read the Canonical Plan First**: Always read `docs/plan/agent_bridge_mvp.md` before making any structural or architectural decisions. It is the single source of truth for design direction.
+- **Do Not Split or Rewrite the Plan**: Keep `docs/plan/agent_bridge_mvp.md` as one single, canonical file. Do not partition it by date, phase, or agent.
+- **Roadmap as Execution State**: Treat `docs/plan/roadmap.md` as mutable execution state. Use it to track phases, milestones, active tasks, and blockers.
 - **No Direct Commits**: Never run git commits unless explicitly instructed by the human supervisor.
 - **No Repository Initialization**: Never run `git init`, create a repository, or alter repository metadata unless explicitly instructed by the human supervisor.
 - **Prefer Structured Artifacts**: Prefer reading compact structured summaries (`summary.md` and `decision_report.json`) over raw logs or broad codebases.

@@ -21,11 +21,11 @@ Verify that the dedicated OpenCode readonly report agent can inspect a small, ex
 - .agent/tasks/phase5b_readonly_report_smoke.toml
 - .agent/tasks/phase5b_readonly_report_smoke.md
 - docs/process/20260521_process.md
-- roadmap.md
+- docs/plan/roadmap.md
 
 ## Forbidden Files
 
-- agent_bridge_mvp.md
+- docs/plan/agent_bridge_mvp.md
 - .git/**
 - .agent/runs/**
 - .agent/metrics/**

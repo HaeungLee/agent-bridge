@@ -21,7 +21,7 @@ Inspect the agent-bridge configuration files and report how OpenCode, nanoGPT, a
 
 ## Forbidden Files
 
-- agent_bridge_mvp.md
+- docs/plan/agent_bridge_mvp.md
 - .git/**
 - .agent/runs/**
 - .agent/metrics/**

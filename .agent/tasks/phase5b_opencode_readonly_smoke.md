@@ -26,11 +26,11 @@ Verify that agent-bridge can invoke OpenCode through a cli_adapter shim in read-
 - .agent/tasks/phase5b_opencode_readonly_smoke.toml
 - .agent/tasks/phase5b_opencode_readonly_smoke.md
 - docs/process/20260521_process.md
-- roadmap.md
+- docs/plan/roadmap.md
 
 ## Forbidden Files
 
-- agent_bridge_mvp.md
+- docs/plan/agent_bridge_mvp.md
 - .git/**
 - .agent/runs/**
 - .agent/metrics/**

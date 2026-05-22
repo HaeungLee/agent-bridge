@@ -22,7 +22,7 @@ Inspect the task specification and CLI gate code. Report how task_spec.v0 valida
 
 ## Forbidden Files
 
-- agent_bridge_mvp.md
+- docs/plan/agent_bridge_mvp.md
 - .git/**
 - .agent/runs/**
 - .agent/metrics/**

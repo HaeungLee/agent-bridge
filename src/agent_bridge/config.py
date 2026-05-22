@@ -6,12 +6,12 @@ from typing import Dict, Any, Optional
 def find_project_root() -> Path:
     """
     Finds the project root by searching upwards from the current file's directory
-    until it finds a directory containing 'agent_bridge_mvp.md' or 'pyproject.toml'.
+    until it finds a directory containing 'docs/plan/agent_bridge_mvp.md' or 'pyproject.toml'.
     Defaults to the current working directory if not found.
     """
     current = Path(__file__).resolve()
     for parent in current.parents:
-        if (parent / "agent_bridge_mvp.md").exists() or (parent / "pyproject.toml").exists():
+        if (parent / "docs/plan/agent_bridge_mvp.md").exists() or (parent / "pyproject.toml").exists():
             return parent
     return Path(os.getcwd())
 

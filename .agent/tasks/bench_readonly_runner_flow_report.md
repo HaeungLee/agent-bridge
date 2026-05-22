@@ -22,7 +22,7 @@ Inspect the CLI adapter execution path and report the concrete flow from agent-b
 
 ## Forbidden Files
 
-- agent_bridge_mvp.md
+- docs/plan/agent_bridge_mvp.md
 - .git/**
 - .agent/runs/**
 - .agent/metrics/**

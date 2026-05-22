@@ -26,7 +26,7 @@ Add a thin gate that reads raw run artifacts, extracts OpenCode JSONL tool_use f
 
 ## Forbidden Files
 
-- agent_bridge_mvp.md
+- docs/plan/agent_bridge_mvp.md
 - .git/**
 - .agent/runs/**
 - .agent/metrics/**

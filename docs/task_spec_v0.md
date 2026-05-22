@@ -56,7 +56,7 @@ allowed_files = [
 ]
 
 forbidden_files = [
-  "agent_bridge_mvp.md",
+  "docs/plan/agent_bridge_mvp.md",
   ".git/**",
   ".agent/runs/**",
 ]
@@ -99,7 +99,7 @@ Required checks:
 - File pattern fields must not contain parent traversal (`..`).
 - `allowed_files` and `forbidden_files` must not contain the same normalized pattern.
 - `forbidden_files` should include at least:
-  - `agent_bridge_mvp.md`
+  - `docs/plan/agent_bridge_mvp.md`
   - `.git/**`
 - `hard_rules` should include at least:
   - `Do not commit.`

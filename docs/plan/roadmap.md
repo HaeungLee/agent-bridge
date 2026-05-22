@@ -4,13 +4,13 @@ Date: 2026-05-21
 
 Status: mutable execution document.
 
-Canonical plan: `agent_bridge_mvp.md`.
+Canonical plan: `docs/plan/agent_bridge_mvp.md`.
 
 This roadmap may change as implementation teaches us more. The plan remains the stable source of direction.
 
 ## Operating Rules
 
-- Keep `agent_bridge_mvp.md` as one canonical plan file.
+- Keep `docs/plan/agent_bridge_mvp.md` as one canonical plan file.
 - Use this roadmap for phase state, milestone progress, and changed execution assumptions.
 - Use `docs/process/YYYYMMDD_process.md` for human-readable work logs.
 - Split process logs at 800 lines, but do not split the plan.
@@ -46,7 +46,7 @@ Milestones:
 
 Acceptance criteria:
 
-- A new agent can read `agent_bridge_mvp.md` and `roadmap.md` and understand the task.
+- A new agent can read `docs/plan/agent_bridge_mvp.md` and `docs/plan/roadmap.md` and understand the task.
 - The plan is treated as immutable direction.
 - The roadmap is treated as mutable execution state.
 
@@ -165,11 +165,11 @@ Before Phase 5 implementation, complete these cleanup gates:
 
 Milestones:
 
-- [ ] Ensure each run writes only to its own run directory.
+- [x] Ensure each run writes only to its own run directory.
 - [x] Define `task_spec.v0` authoring and canonicalization flow.
 - [x] Add `agent-bridge task validate` for canonical task specs.
 - [x] Add preflight checks for allowed files, forbidden files, constraints, and verification commands.
-- [ ] Add result checks for required artifacts, roadmap scope, process log updates, and forbidden file changes.
+- [x] Add result checks for forbidden file changes and raw tool-use path violations.
 - [ ] Add daily process rollup generator.
 - [ ] Add process file line-count rollover at 800 lines.
 - [ ] Add `agent-bridge compare --runs runA runB`.
@@ -182,6 +182,14 @@ Acceptance criteria:
 - LLM-authored specs are canonicalized into strict JSON before execution.
 - Daily process remains readable.
 - Commander can compare outputs without reading all transcripts.
+
+Phase 5 closure note:
+
+- `task_spec.v0` validation/render/check-result is implemented.
+- `agent-bridge task check-tool-use` and `agent-bridge task gate` are implemented as the pre-write-capable safety floor.
+- OpenCode/nanoGPT readonly smoke, session reuse, repo-local pure agents, readonly report agent, and benchmark specs are implemented.
+- Antigravity CLI smoke exists but remains smoke-only because it uses `--dangerously-skip-permissions` and global session-state observation.
+- Write-capable execution is explicitly deferred to the next phase/session and should start with isolated worktrees.
 
 ## Phase 6: Moonlight Compatibility
 
@@ -206,7 +214,7 @@ Use this section when handing implementation to Gemini or another subagent.
 Task:
 
 ```text
-Read `agent_bridge_mvp.md` and `roadmap.md`.
+Read `docs/plan/agent_bridge_mvp.md` and `docs/plan/roadmap.md`.
 Implement only the remaining Phase 0 setup work and the smallest useful CLI skeleton.
 Do not change the canonical plan unless explicitly asked.
 Update the roadmap checkboxes for completed Phase 0 items only.
@@ -216,7 +224,7 @@ Produce a compact summary of changed files, commands run, risks, and open questi
 
 Hard rules:
 
-- Do not split `agent_bridge_mvp.md`.
+- Do not split `docs/plan/agent_bridge_mvp.md`.
 - Do not let raw transcripts replace structured reports.
 - Do not write unrelated features.
 - Do not commit.
@@ -243,6 +251,6 @@ Next recommended step:
 
 ## Current Next Step
 
-Phase 5-B OpenCode/nanoGPT readonly smoke is in progress. The bridge can invoke OpenCode through a `cli_adapter` shim, capture raw output into run artifacts, map OpenCode error frames to failed reports, enforce task-spec file scope after execution, and persist/reuse OpenCode session IDs through `.agent/sessions`.
+Phase 5 is closed for the current session. Start the next session from `handoff_phase5.md`.
 
-Current state: direct-command readonly smoke succeeds with `AGENT_BRIDGE_OPENCODE_SMOKE_OK`, `continue_named` session reuse is verified, and a repo-local pure OpenCode agent `agents/bridge-smoke-agent` is now used for low-autonomy bridge smoke calls. Next step: run a read-only report task through this dedicated agent before enabling write-capable adapters.
+Recommended next work: design isolated worktree execution for write-capable adapters, then compare Kimi/DeepSeek/Mimo on the existing benchmark task specs.

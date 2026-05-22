@@ -20,11 +20,11 @@ Add a narrow task_spec.v0 preflight layer. The bridge should validate a TOML tas
 - .agent/tasks/phase5a_task_spec_validation.toml
 - .agent/tasks/phase5a_task_spec_validation.md
 - docs/process/20260521_process.md
-- roadmap.md
+- docs/plan/roadmap.md
 
 ## Forbidden Files
 
-- agent_bridge_mvp.md
+- docs/plan/agent_bridge_mvp.md
 - .git/**
 - .agent/runs/**
 - src/agent_bridge/runners/cli_adapter.py

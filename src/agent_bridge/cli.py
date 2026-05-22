@@ -30,17 +30,17 @@ def cmd_doctor(args):
     print(f"[*] Project Root: {root} ... [OK]")
     
     # 3. Canonical Plan & Roadmap files check
-    plan_file = root / "agent_bridge_mvp.md"
-    roadmap_file = root / "roadmap.md"
+    plan_file = root / "docs" / "plan" / "agent_bridge_mvp.md"
+    roadmap_file = root / "docs" / "plan" / "roadmap.md"
     
-    print(f"[*] Canonical Plan (agent_bridge_mvp.md): ", end="")
+    print(f"[*] Canonical Plan (docs/plan/agent_bridge_mvp.md): ", end="")
     if plan_file.exists():
         print("[OK]")
     else:
         print("[FAIL] (Missing in root)")
         passed_all = False
         
-    print(f"[*] Roadmap (roadmap.md): ", end="")
+    print(f"[*] Roadmap (docs/plan/roadmap.md): ", end="")
     if roadmap_file.exists():
         print("[OK]")
     else:

@@ -192,7 +192,7 @@ def _benchmark_target_files(files: list[str]) -> list[str]:
     ignored_prefixes = (
         ".agent/tasks/",
         "docs/process/",
-        "roadmap.md",
+        "docs/plan/roadmap.md",
     )
     targets = [
         path for path in files

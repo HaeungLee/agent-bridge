@@ -22,7 +22,7 @@ allowed_files = [
 ]
 
 forbidden_files = [
-  "agent_bridge_mvp.md",
+  "docs/plan/agent_bridge_mvp.md",
   ".git/**",
   ".agent/runs/**",
   ".agent/metrics/**",

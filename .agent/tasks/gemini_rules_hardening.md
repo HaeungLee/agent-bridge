@@ -22,8 +22,8 @@ Tighten repository operating rules so Gemini/Antigravity subagents stay inside a
 
 ## Forbidden Files
 
-- agent_bridge_mvp.md
-- roadmap.md
+- docs/plan/agent_bridge_mvp.md
+- docs/plan/roadmap.md
 - src/**
 - config/**
 - .git/**

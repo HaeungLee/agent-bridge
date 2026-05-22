@@ -18,8 +18,8 @@ allowed_files = [
 ]
 
 forbidden_files = [
-  "agent_bridge_mvp.md",
-  "roadmap.md",
+  "docs/plan/agent_bridge_mvp.md",
+  "docs/plan/roadmap.md",
   "src/**",
   "config/**",
   ".git/**",

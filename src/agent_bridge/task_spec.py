@@ -28,7 +28,7 @@ REQUIRED_LIST_FIELDS = [
     "expected_report_sections",
 ]
 
-REQUIRED_FORBIDDEN_PATTERNS = ["agent_bridge_mvp.md", ".git/**"]
+REQUIRED_FORBIDDEN_PATTERNS = ["docs/plan/agent_bridge_mvp.md", ".git/**"]
 REQUIRED_HARD_RULES = ["Do not commit.", "Do not implement the next phase."]
 
 
