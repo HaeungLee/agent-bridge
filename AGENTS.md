@@ -12,6 +12,8 @@ Welcome, Agent. If you are reading this, you have been delegated a task within t
 - **Prefer Structured Artifacts**: Prefer reading compact structured summaries (`summary.md` and `decision_report.json`) over raw logs or broad codebases.
 - **Stay Inside the Assigned Scope**: Implement only the phase, milestone, or task explicitly assigned. Do not implement the next phase, even if it appears obvious or easy.
 - **Stop After the Requested Unit**: After completing the assigned unit, update the process log and stop. Do not continue into "recommended next steps" without a new instruction.
+- **No Self-Declared PASS or Verdicts**: Never self-declare or auto-assign a "Commander Verdict" or "PASS" status in any process log, walkthrough, or report. These evaluation decisions are strictly reserved for the human commander or supervisor. Always use "N/A" or leave them blank.
+- **No Self-Scoring**: Never add subjective self-evaluation scores such as "Correctness: 5/5" or "Confidence: 5/5". Report facts, commands, risks, and blockers instead.
 
 ## 2. Workspace Safety Policy
 
@@ -44,6 +46,8 @@ Subordinate agents must treat scope control as a correctness requirement.
 - If you notice a useful next step, record it under "Next recommended step" in the process log instead of implementing it.
 - If instructions conflict, prefer the narrower instruction.
 - If unsure whether something is in scope, stop and report the question.
+- **Report Blockers and Stop**: If a task requires modifying files outside the allowed_files list, or if a rule conflict prevents implementation under the assigned slice, stop immediately and report the blocker. Do not unilaterally expand the task scope or modify forbidden files.
+- **Append Shared Logs Only**: Files under `docs/process/` are append-only shared logs. Do not overwrite, recreate, truncate, or replace them. Read the existing file first and append a new section at the end.
 
 ## 5. Generated Artifacts
 
