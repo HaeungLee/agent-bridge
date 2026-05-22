@@ -153,6 +153,8 @@ def _build_message(task_prompt: str, has_session: bool) -> str:
         if has_session:
             return "What exact smoke token were you asked to remember in the previous turn? Reply with only that token."
         return f"Remember this smoke token for the next turn: {SMOKE_TOKEN}. Reply with exactly: {SMOKE_TOKEN}."
+    if _truthy_env("AGENT_BRIDGE_OPENCODE_IMPLEMENTATION"):
+        return _implementation_message(task_prompt)
     if _truthy_env("AGENT_BRIDGE_OPENCODE_COMPACT_REPORT"):
         return _compact_report_message(task_prompt)
     return _readonly_message(task_prompt)
@@ -184,6 +186,22 @@ def _compact_report_message(task_prompt: str) -> str:
             f"Inspect only: {inspect_text}.",
             "Report factual findings in 6 bullets.",
             f"Focus: {focus_line}",
+        ]
+    )
+
+
+def _implementation_message(task_prompt: str) -> str:
+    task_text = task_prompt.strip().replace("\r\n", "\n")
+    return "\n".join(
+        [
+            "You are running under agent-bridge implementation mode.",
+            "Follow the rendered task prompt exactly.",
+            "Modify only files listed in Allowed Files.",
+            "Do not modify Forbidden Files.",
+            "Do not commit.",
+            "If the task cannot be completed within scope, stop and report the blocker.",
+            "",
+            task_text,
         ]
     )
 

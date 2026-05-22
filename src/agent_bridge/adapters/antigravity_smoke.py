@@ -326,40 +326,38 @@ def _write_session_state(workspace: Path, name: str, session_id: str) -> None:
 
 
 def _emit_event(request_id: str, kind: str, message: str) -> None:
-    print(
-        json.dumps(
-            {
-                "contract": CONTRACT_VERSION,
-                "type": "event",
-                "request_id": request_id,
-                "event": {"kind": kind, "ts": "adapter", "message": message, "data": {}},
-            },
-            ensure_ascii=False,
-        ),
-        flush=True,
+    payload = json.dumps(
+        {
+            "contract": CONTRACT_VERSION,
+            "type": "event",
+            "request_id": request_id,
+            "event": {"kind": kind, "ts": "adapter", "message": message, "data": {}},
+        },
+        ensure_ascii=False,
     )
+    sys.stdout.buffer.write(payload.encode("utf-8") + b"\n")
+    sys.stdout.buffer.flush()
 
 
 def _emit_response(request_id: str, result: dict[str, Any]) -> None:
-    print(
-        json.dumps(
-            {
-                "contract": CONTRACT_VERSION,
-                "type": "response",
-                "request_id": request_id,
-                "ok": bool(result["ok"]),
-                "data": {
-                    "run_status": result["run_status"],
-                    "result_summary": result["summary"],
-                    "artifacts": result.get("artifacts", []),
-                },
-                "error": result.get("error"),
-                "metrics": result.get("metrics", {}),
+    payload = json.dumps(
+        {
+            "contract": CONTRACT_VERSION,
+            "type": "response",
+            "request_id": request_id,
+            "ok": bool(result["ok"]),
+            "data": {
+                "run_status": result["run_status"],
+                "result_summary": result["summary"],
+                "artifacts": result.get("artifacts", []),
             },
-            ensure_ascii=False,
-        ),
-        flush=True,
+            "error": result.get("error"),
+            "metrics": result.get("metrics", {}),
+        },
+        ensure_ascii=False,
     )
+    sys.stdout.buffer.write(payload.encode("utf-8") + b"\n")
+    sys.stdout.buffer.flush()
 
 
 if __name__ == "__main__":

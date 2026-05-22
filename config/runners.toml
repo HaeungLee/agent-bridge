@@ -47,6 +47,24 @@ AGENT_BRIDGE_OPENCODE_SESSION_NAME = "opencode_bridge_readonly_report"
 AGENT_BRIDGE_OPENCODE_DIRECT_SMOKE = "false"
 AGENT_BRIDGE_OPENCODE_COMPACT_REPORT = "true"
 
+[runners.cli_adapter.adapters.opencode_kimi_impl]
+command = "python"
+args = ["-m", "agent_bridge.adapters.opencode_readonly"]
+allowlist = ["python", "python.exe"]
+timeout_ms = 300000
+
+[runners.cli_adapter.adapters.opencode_kimi_impl.env]
+PYTHONPATH = "src"
+AGENT_BRIDGE_OPENCODE_MODEL = "nano-gpt/moonshotai/kimi-k2.6"
+AGENT_BRIDGE_OPENCODE_AGENT = "agents/bridge-impl-agent"
+AGENT_BRIDGE_OPENCODE_PURE = "true"
+AGENT_BRIDGE_OPENCODE_TIMEOUT_MS = "300000"
+AGENT_BRIDGE_OPENCODE_SESSION_POLICY = "new"
+AGENT_BRIDGE_OPENCODE_SESSION_NAME = "opencode_bridge_kimi_impl"
+AGENT_BRIDGE_OPENCODE_DIRECT_SMOKE = "false"
+AGENT_BRIDGE_OPENCODE_COMPACT_REPORT = "false"
+AGENT_BRIDGE_OPENCODE_IMPLEMENTATION = "true"
+
 [runners.cli_adapter.adapters.opencode_deepseek_flash_free]
 command = "python"
 args = ["-m", "agent_bridge.adapters.opencode_readonly"]
