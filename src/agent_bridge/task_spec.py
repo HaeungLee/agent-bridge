@@ -8,6 +8,8 @@ from typing import Any
 
 
 SCHEMA_VERSION = "task_spec.v0"
+DEFAULT_EXECUTION_MODE = "report"
+EXECUTION_MODES = {"report", "worktree_patch"}
 
 REQUIRED_STRING_FIELDS = [
     "schema_version",
@@ -46,6 +48,7 @@ DEFAULT_EXPECTED_ARTIFACTS = [
     "raw/stdout.txt",
     "raw/stderr.txt",
 ]
+WORKTREE_PATCH_ARTIFACTS = ["patch.diff", "worktree.json"]
 WRITE_TOOLS = {"edit", "write", "patch", "multiedit"}
 
 
@@ -94,6 +97,26 @@ class ArtifactCheck:
         return not self.missing_artifacts
 
 
+@dataclass
+class PatchCheck:
+    patch_path: Path
+    worktree_metadata_path: Path
+    changed_files: list[str]
+    forbidden_matches: list[str]
+    out_of_scope_files: list[str]
+    metadata_errors: list[str]
+    patch_errors: list[str]
+
+    @property
+    def passed(self) -> bool:
+        return (
+            not self.forbidden_matches
+            and not self.out_of_scope_files
+            and not self.metadata_errors
+            and not self.patch_errors
+        )
+
+
 def load_task_spec(path: Path) -> dict[str, Any]:
     if not path.exists():
         raise FileNotFoundError(f"Task spec does not exist: {path}")
@@ -111,6 +134,7 @@ def validate_task_spec(spec: dict[str, Any]) -> TaskSpecValidation:
     _validate_required_strings(spec)
     _validate_required_lists(spec)
     _validate_schema_version(spec)
+    _validate_execution_mode(spec)
     _validate_file_patterns(spec["allowed_files"], "allowed_files")
     _validate_file_patterns(spec["forbidden_files"], "forbidden_files")
     for field in OPTIONAL_FILE_LIST_FIELDS:
@@ -121,6 +145,8 @@ def validate_task_spec(spec: dict[str, Any]) -> TaskSpecValidation:
         _validate_no_pattern_overlap(spec["read_scope"], spec["forbidden_files"])
     if "write_scope" in spec:
         _validate_no_pattern_overlap(spec["write_scope"], spec["forbidden_files"])
+    if _execution_mode(spec) == "worktree_patch" and "write_scope" not in spec:
+        raise ValueError("Field 'write_scope' is required when execution_mode is 'worktree_patch'")
     warnings.extend(_validate_recommended_guardrails(spec))
     return TaskSpecValidation(spec=spec, warnings=warnings)
 
@@ -139,6 +165,7 @@ def render_task_prompt(spec: dict[str, Any]) -> str:
         f"- Phase: {spec['phase']}",
         f"- Slice: {spec['slice']}",
         f"- Owner: {spec['owner']}",
+        f"- Execution Mode: {_execution_mode(spec)}",
         "",
         "## Objective",
         "",
@@ -252,6 +279,7 @@ def check_run_tool_use(spec: dict[str, Any], run_dir: Path, workspace_path: Path
     read_allowed = _scope_patterns(spec, "read_scope")
     write_allowed = _scope_patterns(spec, "write_scope")
     forbidden = [_normalize_pattern(item) for item in spec["forbidden_files"]]
+    execution_mode = _execution_mode(spec)
 
     forbidden_matches: list[str] = []
     out_of_scope_paths: list[str] = []
@@ -272,7 +300,7 @@ def check_run_tool_use(spec: dict[str, Any], run_dir: Path, workspace_path: Path
                 out_of_scope_paths.append(rel_path)
             elif not is_write_tool and not _matches_any(rel_path, read_allowed):
                 out_of_scope_paths.append(rel_path)
-        if is_write_tool and not _tool_use_paths(tool_use):
+        if execution_mode == "report" and is_write_tool and not _tool_use_paths(tool_use):
             write_tool_uses.append(tool)
 
     return ToolUseCheck(
@@ -290,6 +318,47 @@ def check_run_artifacts(spec: dict[str, Any], run_dir: Path) -> ArtifactCheck:
     expected = _expected_artifacts(spec)
     missing = [artifact for artifact in expected if not (run_dir / artifact).exists()]
     return ArtifactCheck(expected_artifacts=expected, missing_artifacts=missing)
+
+
+def check_run_patch(spec: dict[str, Any], run_dir: Path) -> PatchCheck:
+    validation = validate_task_spec(spec)
+    spec = validation.spec
+    patch_path = run_dir / "patch.diff"
+    metadata_path = run_dir / "worktree.json"
+    forbidden = [_normalize_pattern(item) for item in spec["forbidden_files"]]
+    allowed = _scope_patterns(spec, "write_scope")
+
+    metadata_errors = _validate_worktree_metadata(metadata_path, run_dir.name)
+    patch_errors: list[str] = []
+    changed_files: list[str] = []
+
+    if not patch_path.exists():
+        patch_errors.append("Missing patch.diff")
+    elif not patch_path.is_file():
+        patch_errors.append("patch.diff is not a file")
+    else:
+        try:
+            changed_files = _extract_patch_changed_files(patch_path.read_text(encoding="utf-8", errors="replace"))
+        except Exception as exc:
+            patch_errors.append(f"Failed to parse patch.diff: {exc}")
+
+    forbidden_matches: list[str] = []
+    out_of_scope_files: list[str] = []
+    for changed_file in changed_files:
+        if _matches_any(changed_file, forbidden):
+            forbidden_matches.append(changed_file)
+        elif not _matches_any(changed_file, allowed):
+            out_of_scope_files.append(changed_file)
+
+    return PatchCheck(
+        patch_path=patch_path,
+        worktree_metadata_path=metadata_path,
+        changed_files=sorted(set(changed_files)),
+        forbidden_matches=sorted(set(forbidden_matches)),
+        out_of_scope_files=sorted(set(out_of_scope_files)),
+        metadata_errors=metadata_errors,
+        patch_errors=patch_errors,
+    )
 
 
 def extract_tool_uses(raw_stdout: str) -> list[dict[str, Any]]:
@@ -457,6 +526,16 @@ def _validate_schema_version(spec: dict[str, Any]) -> None:
         )
 
 
+def _validate_execution_mode(spec: dict[str, Any]) -> None:
+    mode = spec.get("execution_mode", DEFAULT_EXECUTION_MODE)
+    if not isinstance(mode, str) or not mode.strip():
+        raise ValueError("Field 'execution_mode' must be a non-empty string when present")
+    if mode.strip() not in EXECUTION_MODES:
+        raise ValueError(
+            f"Invalid execution_mode '{mode}'. Expected one of: {sorted(EXECUTION_MODES)}"
+        )
+
+
 def _validate_file_patterns(patterns: list[str], field_name: str) -> None:
     for pattern in patterns:
         normalized = _normalize_pattern(pattern)
@@ -518,7 +597,65 @@ def _expected_artifacts(spec: dict[str, Any]) -> list[str]:
     values = spec.get("expected_artifacts")
     if not isinstance(values, list) or not values:
         values = DEFAULT_EXPECTED_ARTIFACTS
-    return [_normalize_pattern(item) for item in values]
+    expected = [_normalize_pattern(item) for item in values]
+    if _execution_mode(spec) == "worktree_patch":
+        for artifact in WORKTREE_PATCH_ARTIFACTS:
+            if artifact not in expected:
+                expected.append(artifact)
+    return expected
+
+
+def _execution_mode(spec: dict[str, Any]) -> str:
+    value = spec.get("execution_mode", DEFAULT_EXECUTION_MODE)
+    return str(value).strip() or DEFAULT_EXECUTION_MODE
+
+
+def _validate_worktree_metadata(path: Path, run_id: str) -> list[str]:
+    errors: list[str] = []
+    if not path.exists():
+        return ["Missing worktree.json"]
+    if not path.is_file():
+        return ["worktree.json is not a file"]
+    try:
+        data = json.loads(path.read_text(encoding="utf-8-sig"))
+    except Exception as exc:
+        return [f"worktree.json is not valid JSON: {exc}"]
+    if not isinstance(data, dict):
+        return ["worktree.json must contain a JSON object"]
+
+    required = ["schema_version", "run_id", "repo_root", "worktree_path", "base_ref", "base_sha"]
+    for field in required:
+        if not isinstance(data.get(field), str) or not str(data.get(field)).strip():
+            errors.append(f"worktree.json missing non-empty string field: {field}")
+    if data.get("schema_version") != "worktree.v0":
+        errors.append("worktree.json schema_version must be 'worktree.v0'")
+    if data.get("run_id") != run_id:
+        errors.append(f"worktree.json run_id does not match run directory: {data.get('run_id')} != {run_id}")
+    return errors
+
+
+def _extract_patch_changed_files(patch_text: str) -> list[str]:
+    changed: set[str] = set()
+    for line in patch_text.splitlines():
+        path = ""
+        if line.startswith("diff --git "):
+            parts = line.split()
+            if len(parts) >= 4:
+                path = _patch_path_to_repo_path(parts[3])
+        elif line.startswith("+++ "):
+            value = line[4:].strip()
+            if value != "/dev/null":
+                path = _patch_path_to_repo_path(value)
+        if path:
+            changed.add(path)
+    return sorted(changed)
+
+
+def _patch_path_to_repo_path(path: str) -> str:
+    path = path.strip().strip('"')
+    if path.startswith("a/") or path.startswith("b/"):
+        path = path[2:]
+    return _normalize_pattern(path)
 
 
 def _bullet_lines(items: list[str]) -> list[str]:

@@ -45,6 +45,7 @@ phase = "Phase 5"
 slice = "Task Spec Validation"
 title = "Implement task_spec.v0 validation"
 owner = "commander"
+execution_mode = "report"
 
 objective = """
 Add validation and rendering for structured task specs.
@@ -124,12 +125,16 @@ Required checks:
 - `schema_version` must equal `task_spec.v0`.
 - Required string fields must be non-empty strings.
 - Required list fields must be non-empty lists of non-empty strings.
+- Optional `execution_mode` must be one of:
+  - `report`
+  - `worktree_patch`
 - File pattern fields must not contain absolute paths.
 - File pattern fields must not contain parent traversal (`..`).
 - `allowed_files` and `forbidden_files` must not contain the same normalized pattern.
 - Optional `read_scope` and `write_scope` must be non-empty lists of relative file patterns when present.
 - `read_scope` and `write_scope` must not overlap `forbidden_files`.
 - Optional `expected_artifacts` must be a non-empty list of relative run artifact paths when present.
+- `worktree_patch` mode requires explicit `write_scope`.
 - `forbidden_files` should include at least:
   - `.git/**`
 - `hard_rules` should include at least:
@@ -185,7 +190,27 @@ raw/stdout.txt
 raw/stderr.txt
 ```
 
-Write-capable tasks may add stricter task-specific artifacts such as `patch.diff` or `worktree.json` once the corresponding runner contract exists.
+When `execution_mode = "worktree_patch"`, the gate additionally requires:
+
+```text
+patch.diff
+worktree.json
+```
+
+and validates:
+
+- `worktree.json` is valid JSON
+- `worktree.json` has `schema_version = "worktree.v0"`
+- `worktree.json.run_id` matches the run directory name
+- `patch.diff` can be parsed for changed paths
+- every patch changed path matches `write_scope`
+- no patch changed path matches `forbidden_files`
+
+The dedicated patch check can also be run directly:
+
+```text
+agent-bridge task check-patch --spec <spec.toml> --run <run_id_or_latest>
+```
 
 ## 7. Rendered Prompt
 

@@ -1,0 +1,73 @@
+schema_version = "task_spec.v0"
+task_id = "phase5d-worktree-patch-gate-smoke"
+phase = "Phase 5-D"
+slice = "Worktree Patch Gate Foundation"
+title = "Smoke test worktree patch gate"
+owner = "commander"
+execution_mode = "worktree_patch"
+
+objective = """
+Verify that task_spec.v0 worktree_patch mode can validate patch.diff and worktree.json artifacts against write_scope and forbidden_files without using active workspace git status.
+"""
+
+allowed_files = [
+  "src/agent_bridge/task_spec.py",
+]
+
+read_scope = [
+  "src/agent_bridge/task_spec.py",
+]
+
+write_scope = [
+  "src/agent_bridge/task_spec.py",
+]
+
+expected_artifacts = [
+  "summary.md",
+  "decision_report.json",
+  "diffstat.txt",
+  "touched_files.json",
+  "tests.md",
+  "risks.md",
+  "process.md",
+  "metrics.json",
+  "request.json",
+  "completed.marker",
+  "raw/stdout.txt",
+  "raw/stderr.txt",
+]
+
+forbidden_files = [
+  ".git/**",
+  ".agent/runs/**",
+  ".agent/metrics/**",
+  ".agent/sessions/*.json",
+  "docs/plan/agent_bridge_mvp.md",
+]
+
+required_commands = [
+  "uv run agent-bridge task validate --spec .agent/tasks/phase5d_worktree_patch_gate_smoke.toml",
+  "uv run agent-bridge task check-patch --spec .agent/tasks/phase5d_worktree_patch_gate_smoke.toml --run <synthetic-run>",
+]
+
+acceptance_criteria = [
+  "worktree_patch mode requires patch.diff and worktree.json.",
+  "patch.diff changed paths are validated against write_scope.",
+  "patch.diff changed paths are validated against forbidden_files.",
+  "worktree.json run_id must match the run directory name.",
+]
+
+hard_rules = [
+  "Do not commit.",
+  "Do not implement the next phase.",
+  "Do not modify active workspace files as part of this smoke.",
+]
+
+expected_report_sections = [
+  "Changed files",
+  "Commands run",
+  "Result",
+  "Risks",
+  "Open questions",
+  "Next recommended step",
+]

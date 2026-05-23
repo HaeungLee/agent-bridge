@@ -199,3 +199,22 @@ Implement only:
 
 Do not wire worktrees into `agent-bridge run` yet.
 
+## Phase 5-D Gate Foundation
+
+`task_spec.v0` now supports a narrow execution mode split:
+
+```toml
+execution_mode = "report"
+execution_mode = "worktree_patch"
+```
+
+`report` remains the safe default. `worktree_patch` requires explicit `write_scope` and makes `agent-bridge task gate` require both:
+
+```text
+patch.diff
+worktree.json
+```
+
+The gate validates that `worktree.json` is parseable, uses `schema_version = "worktree.v0"`, and matches the run directory ID. It also parses changed paths from `patch.diff` and checks them against `write_scope` and `forbidden_files`.
+
+This is still a gate foundation only. Worktree lifecycle orchestration is not wired into `agent-bridge run` yet, and patches are not automatically applied.

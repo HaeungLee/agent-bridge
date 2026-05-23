@@ -456,6 +456,7 @@ def cmd_task_validate(args):
     print(f"Phase   : {spec.get('phase')}")
     print(f"Slice   : {spec.get('slice')}")
     print(f"Title   : {spec.get('title')}")
+    print(f"Mode    : {spec.get('execution_mode', 'report')}")
     print(f"Allowed : {len(spec.get('allowed_files', []))} file patterns")
     if "read_scope" in spec:
         print(f"Read    : {len(spec.get('read_scope', []))} file patterns")
@@ -591,13 +592,70 @@ def cmd_task_check_tool_use(args):
     print("[FAIL] tool-use paths exceeded task_spec.v0 scope", file=sys.stderr)
     sys.exit(1)
 
+def cmd_task_check_patch(args):
+    """
+    Executes 'agent-bridge task check-patch --spec <spec.toml> --run <run>'.
+    """
+    from agent_bridge.config import find_project_root
+    from agent_bridge.runs import find_latest_run
+    from agent_bridge.task_spec import check_run_patch, load_task_spec
+
+    root = find_project_root()
+    spec_path = Path(args.spec)
+    try:
+        if args.run == "latest":
+            run_dir = find_latest_run(root)
+        else:
+            run_dir = root / ".agent" / "runs" / args.run
+            if not run_dir.exists() or not run_dir.is_dir():
+                raise FileNotFoundError(f"Run directory for '{args.run}' does not exist")
+        result = check_run_patch(load_task_spec(spec_path), run_dir)
+    except Exception as e:
+        print(f"[FAIL] Patch check failed: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    print("==================================================")
+    print("Agent Bridge Worktree Patch Check")
+    print("==================================================")
+    print(f"Spec      : {spec_path}")
+    print(f"Run       : {run_dir.name}")
+    print(f"Patch     : {result.patch_path}")
+    print(f"Metadata  : {result.worktree_metadata_path}")
+    print(f"Changed   : {len(result.changed_files)} files")
+    if result.changed_files:
+        print("Patch changed files:")
+        for path in result.changed_files:
+            print(f"  - {path}")
+    if result.metadata_errors:
+        print("Worktree metadata errors:")
+        for error in result.metadata_errors:
+            print(f"  - {error}")
+    if result.patch_errors:
+        print("Patch errors:")
+        for error in result.patch_errors:
+            print(f"  - {error}")
+    if result.forbidden_matches:
+        print("Forbidden patch path violations:")
+        for path in result.forbidden_matches:
+            print(f"  - {path}")
+    if result.out_of_scope_files:
+        print("Out-of-scope patch path violations:")
+        for path in result.out_of_scope_files:
+            print(f"  - {path}")
+    print("==================================================")
+    if result.passed:
+        print("[OK] patch stayed within task_spec.v0 worktree scope")
+        sys.exit(0)
+    print("[FAIL] patch exceeded task_spec.v0 worktree scope", file=sys.stderr)
+    sys.exit(1)
+
 def cmd_task_gate(args):
     """
     Executes the standard post-run gate for delegated tasks.
     """
     from agent_bridge.config import find_project_root
     from agent_bridge.runs import find_latest_run
-    from agent_bridge.task_spec import check_run_artifacts, check_run_tool_use, load_task_spec
+    from agent_bridge.task_spec import check_run_artifacts, check_run_patch, check_run_tool_use, load_task_spec
     import json
 
     root = find_project_root()
@@ -614,7 +672,7 @@ def cmd_task_gate(args):
         report_path = run_dir / "decision_report.json"
         if not report_path.exists():
             raise FileNotFoundError(f"Missing required run artifact: {report_path}")
-        with report_path.open("r", encoding="utf-8") as f:
+        with report_path.open("r", encoding="utf-8-sig") as f:
             report = json.load(f)
         status = str(report.get("status") or "")
         if status != "completed":
@@ -623,6 +681,10 @@ def cmd_task_gate(args):
         spec = load_task_spec(spec_path)
         artifact_result = check_run_artifacts(spec, run_dir)
         tool_result = check_run_tool_use(spec, run_dir, workspace_path)
+        execution_mode = spec.get("execution_mode", "report")
+        patch_result = None
+        if execution_mode == "worktree_patch":
+            patch_result = check_run_patch(spec, run_dir)
     except Exception as e:
         print(f"[FAIL] Task gate failed: {e}", file=sys.stderr)
         sys.exit(1)
@@ -634,6 +696,7 @@ def cmd_task_gate(args):
     print(f"Run       : {run_dir.name}")
     print(f"Workspace : {workspace_path}")
     print(f"Status    : {status}")
+    print(f"Mode      : {execution_mode}")
     print(f"Artifacts : {len(artifact_result.expected_artifacts)} expected")
     if artifact_result.missing_artifacts:
         print("Missing artifacts:")
@@ -656,8 +719,27 @@ def cmd_task_gate(args):
         print("Outside-workspace path violations:")
         for path in tool_result.outside_workspace_paths:
             print(f"  - {path}")
+    if patch_result:
+        print(f"Patch changed files: {len(patch_result.changed_files)}")
+        if patch_result.metadata_errors:
+            print("Worktree metadata errors:")
+            for error in patch_result.metadata_errors:
+                print(f"  - {error}")
+        if patch_result.patch_errors:
+            print("Patch errors:")
+            for error in patch_result.patch_errors:
+                print(f"  - {error}")
+        if patch_result.forbidden_matches:
+            print("Forbidden patch path violations:")
+            for path in patch_result.forbidden_matches:
+                print(f"  - {path}")
+        if patch_result.out_of_scope_files:
+            print("Out-of-scope patch path violations:")
+            for path in patch_result.out_of_scope_files:
+                print(f"  - {path}")
     print("==================================================")
-    if artifact_result.passed and tool_result.passed:
+    patch_passed = True if patch_result is None else patch_result.passed
+    if artifact_result.passed and tool_result.passed and patch_passed:
         print("[OK] task gate passed")
         sys.exit(0)
     print("[FAIL] task gate rejected run", file=sys.stderr)
@@ -720,6 +802,10 @@ def main():
     parser_task_tool_use.add_argument("--run", default="latest", help="Run ID to inspect (default: latest)")
     parser_task_tool_use.add_argument("--workspace", default=".", help="Workspace path used to normalize tool paths")
 
+    parser_task_patch = task_subparsers.add_parser("check-patch", help="Check worktree patch artifacts against task_spec.v0 scope")
+    parser_task_patch.add_argument("--spec", required=True, help="Path to task_spec.v0 TOML")
+    parser_task_patch.add_argument("--run", default="latest", help="Run ID to inspect (default: latest)")
+
     parser_task_gate = task_subparsers.add_parser("gate", help="Run the standard post-run task gate")
     parser_task_gate.add_argument("--spec", required=True, help="Path to task_spec.v0 TOML")
     parser_task_gate.add_argument("--run", default="latest", help="Run ID to inspect (default: latest)")
@@ -746,6 +832,8 @@ def main():
             cmd_task_check_result(args)
         elif args.task_command == "check-tool-use":
             cmd_task_check_tool_use(args)
+        elif args.task_command == "check-patch":
+            cmd_task_check_patch(args)
         elif args.task_command == "gate":
             cmd_task_gate(args)
         else:
