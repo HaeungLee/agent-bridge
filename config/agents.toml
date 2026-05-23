@@ -113,3 +113,14 @@ max_cost_usd = 0.5
 output_contract = "adapter.v0.1"
 adapter_id = "antigravity_xml"
 
+[agents.opencode_deepseek_flash]
+runner = "cli_adapter"
+provider = "opencode"
+model = "deepseek/deepseek-v4-flash"
+role = "implementation"
+default_mode = "execute"
+max_cost_usd = 0.0
+output_contract = "adapter.v0.1"
+adapter_id = "opencode_deepseek_flash"
+
+
