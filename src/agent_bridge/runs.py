@@ -43,14 +43,14 @@ def find_latest_run(root_path: Path) -> Path:
     runs_dir = root_path / ".agent" / "runs"
     if not runs_dir.exists():
         raise FileNotFoundError("No run directory exists because .agent/runs is missing")
-        
+
     run_dirs = [
         d for d in runs_dir.iterdir()
         if d.is_dir() and (d / COMPLETED_MARKER).exists()
     ]
     if not run_dirs:
         raise FileNotFoundError("No completed run directories found under .agent/runs")
-        
+
     run_dirs.sort(key=lambda x: x.name, reverse=True)
     return run_dirs[0]
 
@@ -109,6 +109,9 @@ def execute_mock_run(agent_name: str, task_path: Path, workspace_path: Path, roo
     if root_path is None:
         root_path = find_project_root()
         
+    files_inspected_val = []
+    files_changed_val = []
+
     # 1. Verification
     # A. Config validation
     configs = load_all_configs(root_path)
@@ -218,6 +221,32 @@ def execute_mock_run(agent_name: str, task_path: Path, workspace_path: Path, roo
         open_questions_list = ["When should write-capable agent execution be enabled?"]
         next_action_val = "Review CLI adapter smoke and result scope check before enabling write-capable adapters."
         confidence_val = 0.7 if status_val == "completed" else 0.0
+
+        xml_data = None
+        final_report = ""
+        adapter_artifacts = metadata_val.get("adapter_artifacts") or []
+        for art in adapter_artifacts:
+            if art.get("kind") == "xml_report_parsed":
+                try:
+                    xml_data = json.loads(art.get("text", "{}"))
+                except Exception:
+                    pass
+            if art.get("kind") == "final_report":
+                final_report = str(art.get("text") or "").strip()
+
+        if xml_data:
+            if xml_data.get("summary"):
+                summary_val = xml_data["summary"]
+            files_inspected_val = xml_data.get("files_inspected") or []
+            files_changed_val = xml_data.get("files_changed") or []
+            if xml_data.get("risks"):
+                risks_list = xml_data["risks"]
+            if xml_data.get("open_questions"):
+                open_questions_list = xml_data["open_questions"]
+            if xml_data.get("next_step"):
+                next_action_val = xml_data["next_step"]
+        elif final_report:
+            summary_val = _compact_text(final_report)
     else:
         # Default blocked behavior for non-mock runners
         status_val = "blocked"
@@ -244,8 +273,8 @@ def execute_mock_run(agent_name: str, task_path: Path, workspace_path: Path, roo
         status=status_val,
         verdict=verdict_val,
         summary=summary_val,
-        files_inspected=[],
-        files_changed=[],
+        files_inspected=files_inspected_val,
+        files_changed=files_changed_val,
         commands_run=commands_run_val,
         tests=TestSummary(status="not_run", summary="Not run. This is runner execution, not project verification."),
         risks=risks_list,
@@ -326,8 +355,8 @@ Verify that the `agent-bridge run` CLI life cycle successfully executes, perform
         "model": report.model,
         "task_type": report.role,
         "workspace": str(workspace_path),
-        "files_inspected": 0,
-        "files_changed": 0,
+        "files_inspected": len(files_inspected_val),
+        "files_changed": len(files_changed_val),
         "lines_added": 0,
         "lines_deleted": 0,
         "commands_run": len(commands_run_val),
@@ -372,6 +401,29 @@ Verify that the `agent-bridge run` CLI life cycle successfully executes, perform
         risks_content += f"- {r}\n"
     write_text(run_dir / "risks.md", risks_content)
 
+    # Save structured adapter report artifacts that are useful for commander review.
+    if runner_name == "cli_adapter" and status_val == "completed":
+        adapter_artifacts = metadata_val.get("adapter_artifacts") or []
+        xml_data = None
+        for art in adapter_artifacts:
+            kind = art.get("kind")
+            if kind == "final_report":
+                final_report = str(art.get("text") or "").strip()
+                if final_report:
+                    write_text(run_dir / "final_report.md", final_report)
+            elif kind == "xml_report_parsed":
+                try:
+                    xml_data = json.loads(art.get("text", "{}"))
+                except Exception:
+                    pass
+            elif kind == "xml_report_raw":
+                xml_text = art.get("text", "")
+                if xml_text.strip():
+                    write_text(run_dir / "response.xml", xml_text)
+
+        if xml_data and "commands_run" in xml_data:
+            write_json(run_dir / "claimed_commands.json", xml_data["commands_run"])
+
     marker_content = {
         "run_id": run_id,
         "completed_at": datetime.datetime.now().isoformat(),
@@ -382,3 +434,10 @@ Verify that the `agent-bridge run` CLI life cycle successfully executes, perform
     write_json(run_dir / COMPLETED_MARKER, marker_content)
     
     return run_id
+
+
+def _compact_text(text: str, limit: int = 1800) -> str:
+    normalized = " ".join(text.split())
+    if len(normalized) <= limit:
+        return normalized
+    return normalized[:limit].rstrip() + "..."

@@ -10,6 +10,7 @@ from typing import Any
 CONTRACT_VERSION = "adapter.v0.1"
 STDOUT_PREVIEW_CHARS = 12_000
 STDERR_PREVIEW_CHARS = 4_000
+FINAL_REPORT_CHARS = 80_000
 SMOKE_TOKEN = "AGENT_BRIDGE_OPENCODE_SMOKE_OK"
 
 
@@ -99,6 +100,7 @@ def _run_opencode(request: dict[str, Any]) -> dict[str, Any]:
 
     opencode_error = _extract_opencode_error(stdout)
     text_output = _extract_opencode_text(stdout)
+    final_report = text_output[:FINAL_REPORT_CHARS]
     observed_session_id = _extract_session_id(stdout) or session_id
     session_reused = bool(session_id)
     if observed_session_id and session_policy == "continue_named":
@@ -121,6 +123,10 @@ def _run_opencode(request: dict[str, Any]) -> dict[str, Any]:
         "run_status": "completed" if ok else "failed",
         "summary": summary,
         "artifacts": [
+            {
+                "kind": "final_report",
+                "text": final_report,
+            },
             {
                 "kind": "tool_use_summary",
                 "items": _extract_tool_use_summary(stdout),
@@ -173,18 +179,28 @@ def _decode_process_output(value: bytes | str | None) -> str:
 
 
 def _compact_report_message(task_prompt: str) -> str:
-    files = _extract_rendered_list(task_prompt, "Allowed Files")
+    files = _extract_rendered_list(task_prompt, "Read Scope")
+    if not files:
+        files = _extract_rendered_list(task_prompt, "Allowed Files")
     inspect_files = _benchmark_target_files(files)
     inspect_text = ", ".join(inspect_files) if inspect_files else "the rendered task's explicit allowed files"
     objective = _extract_rendered_section(task_prompt, "Objective")[:600]
     focus_line = objective if objective else "Return a compact factual report about the requested repository slice."
     return "\n".join(
         [
-            "Read-only repository report.",
+            "Read-only repository report for an automated commander.",
             "Do not modify files or create files.",
             "Use only read/grep/glob style inspection if tool use is needed.",
             f"Inspect only: {inspect_text}.",
-            "Report factual findings in 6 bullets.",
+            "After inspection, output only the final report. Do not include tool logs, chain-of-thought, hidden reasoning, or raw file excerpts.",
+            "Keep the final report under 900 words.",
+            "Use these exact headings:",
+            "Files inspected",
+            "Design findings",
+            "Failure modes",
+            "Recommended next implementation slice",
+            "Out of scope",
+            "Open questions",
             f"Focus: {focus_line}",
         ]
     )
@@ -279,40 +295,38 @@ def _readonly_message(task_prompt: str) -> str:
 
 
 def _emit_event(request_id: str, kind: str, message: str) -> None:
-    print(
-        json.dumps(
-            {
-                "contract": CONTRACT_VERSION,
-                "type": "event",
-                "request_id": request_id,
-                "event": {"kind": kind, "ts": "adapter", "message": message, "data": {}},
-            },
-            ensure_ascii=False,
-        ),
-        flush=True,
+    _emit_jsonl(
+        {
+            "contract": CONTRACT_VERSION,
+            "type": "event",
+            "request_id": request_id,
+            "event": {"kind": kind, "ts": "adapter", "message": message, "data": {}},
+        }
     )
 
 
 def _emit_response(request_id: str, result: dict[str, Any]) -> None:
-    print(
-        json.dumps(
-            {
-                "contract": CONTRACT_VERSION,
-                "type": "response",
-                "request_id": request_id,
-                "ok": bool(result["ok"]),
-                "data": {
-                    "run_status": result["run_status"],
-                    "result_summary": result["summary"],
-                    "artifacts": result.get("artifacts", []),
-                },
-                "error": result.get("error"),
-                "metrics": result.get("metrics", {}),
+    _emit_jsonl(
+        {
+            "contract": CONTRACT_VERSION,
+            "type": "response",
+            "request_id": request_id,
+            "ok": bool(result["ok"]),
+            "data": {
+                "run_status": result["run_status"],
+                "result_summary": result["summary"],
+                "artifacts": result.get("artifacts", []),
             },
-            ensure_ascii=False,
-        ),
-        flush=True,
+            "error": result.get("error"),
+            "metrics": result.get("metrics", {}),
+        }
     )
+
+
+def _emit_jsonl(payload: dict[str, Any]) -> None:
+    encoded = json.dumps(payload, ensure_ascii=False).encode("utf-8") + b"\n"
+    sys.stdout.buffer.write(encoded)
+    sys.stdout.buffer.flush()
 
 
 # Removed: _safe_request_id() was re-reading stdin which is always empty after main() reads it.

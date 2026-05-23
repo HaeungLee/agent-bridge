@@ -10,7 +10,16 @@
 
 ## Objective
 
-Verify that agent-bridge can invoke Antigravity through a cli_adapter shim in XML report mode, deliver the XML requirement guidelines, capture the generated scratch response.xml file, verify it through the self-healing XML parser, and confirm that the decision report maps the parsed metrics correctly.
+This is a quick connectivity smoke test for XML format capability.
+You do NOT need to inspect the active workspace files or use any tools.
+Directly generate a valid XML report containing the smoke token 'AGENT_BRIDGE_ANTIGRAVITY_SMOKE_OK' and save it in your scratch directory.
+
+[CRITICAL INSTRUCTION]
+Antigravity agent has a rule to record its work log inside the scratch directory (often as YYYYMMDD_process.md or response.xml).
+For this task, you MUST format the ENTIRE text content of that scratch file as a raw XML conforming to the agent-bridge.report.v0 schema.
+Do NOT use standard Markdown headers, bullets, or markdown code fences (e.g. ```xml) anywhere in the scratch file.
+The file content must start exactly with <agent_report version="agent-bridge.report.v0"> and end exactly with </agent_report>.
+The <summary> tag within the XML MUST contain the exact smoke token: AGENT_BRIDGE_ANTIGRAVITY_SMOKE_OK
 
 ## Allowed Files
 
@@ -27,6 +36,22 @@ Verify that agent-bridge can invoke Antigravity through a cli_adapter shim in XM
 - .agent/tasks/phase5b_antigravity_xml.md
 - docs/process/20260522_process.md
 - docs/plan/roadmap.md
+
+## Expected Artifacts
+
+- summary.md
+- decision_report.json
+- diffstat.txt
+- touched_files.json
+- tests.md
+- risks.md
+- process.md
+- metrics.json
+- request.json
+- completed.marker
+- raw/stdout.txt
+- raw/stderr.txt
+- response.xml
 
 ## Forbidden Files
 

@@ -214,6 +214,10 @@ def _run_antigravity(request: dict[str, Any]) -> dict[str, Any]:
             "kind": "xml_report_parsed",
             "text": json.dumps(xml_data, indent=2, ensure_ascii=False),
         })
+        run_artifacts.append({
+            "kind": "xml_report_raw",
+            "text": scratch_text,
+        })
 
     return {
         "ok": ok,
@@ -365,12 +369,28 @@ def _read_new_scratch_text(before: dict[Path, float], after: dict[Path, float]) 
         if path not in before or mtime > before[path]
     ]
     if changed:
+        # Prioritize XML files if any changed
+        xml_paths = [p for p in changed if p.suffix.lower() == ".xml" or "xml" in p.name.lower()]
+        if xml_paths:
+            newest_xml = sorted(xml_paths, key=lambda path: after[path])[-1]
+            text = _read_text(newest_xml, limit=12_000)
+            if text.strip():
+                return text
+
         newest = sorted(changed, key=lambda path: after[path])[-1]
         return _read_text(newest, limit=12_000)
     
     # 2. Fallback: On Windows NTFS, mtime updates can be delayed or throttled for identical writes.
     # Retrieve the absolute newest file in the scratch folder regardless of pre-run mtime state.
     if after:
+        # Prioritize XML files among all scratch files
+        xml_paths = [p for p in after.keys() if p.suffix.lower() == ".xml" or "xml" in p.name.lower()]
+        if xml_paths:
+            newest_xml = sorted(xml_paths, key=lambda path: after[path])[-1]
+            text = _read_text(newest_xml, limit=12_000)
+            if text.strip():
+                return text
+
         newest = sorted(after.keys(), key=lambda path: after[path])[-1]
         text = _read_text(newest, limit=12_000)
         if text.strip():
