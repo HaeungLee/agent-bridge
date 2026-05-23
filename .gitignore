@@ -40,3 +40,4 @@ ENV/
 !.agent/**/.gitkeep
 
 mynote
+proxy
