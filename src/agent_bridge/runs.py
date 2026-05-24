@@ -9,6 +9,15 @@ from agent_bridge.config import find_project_root, load_all_configs
 from agent_bridge.contracts import DecisionReport, TestSummary, validate_decision_report
 from agent_bridge.runners.cli_adapter import CliAdapterRunner, load_cli_adapter_config, make_local_smoke_config
 from agent_bridge.runners.mock_subprocess import MockSubprocessRunner
+from agent_bridge.task_spec import DEFAULT_EXECUTION_MODE, load_task_spec, validate_task_spec
+from agent_bridge.worktrees import (
+    WorktreeInfo,
+    collect_worktree_changed_files,
+    create_isolated_worktree,
+    export_worktree_patch,
+    remove_isolated_worktree,
+    write_worktree_metadata,
+)
 
 COMPLETED_MARKER = "completed.marker"
 DECISION_REPORT_STATUS_MAP = {
@@ -111,6 +120,8 @@ def execute_mock_run(agent_name: str, task_path: Path, workspace_path: Path, roo
         
     files_inspected_val = []
     files_changed_val = []
+    task_spec = _load_optional_task_spec(task_path)
+    execution_mode = _task_execution_mode(task_spec)
 
     # 1. Verification
     # A. Config validation
@@ -160,11 +171,20 @@ def execute_mock_run(agent_name: str, task_path: Path, workspace_path: Path, roo
             import time
             time.sleep(0.01)
     
+    worktree_info: WorktreeInfo | None = None
+    execution_workspace_path = workspace_path
+    if execution_mode == "worktree_patch":
+        worktree_info = create_isolated_worktree(workspace_path, run_id)
+        write_worktree_metadata(worktree_info, run_dir / "worktree.json")
+        execution_workspace_path = worktree_info.worktree_path
+
     # 3. Create request.json
     request_data = {
         "agent": agent_name,
         "task": str(task_path),
         "workspace": str(workspace_path),
+        "execution_workspace": str(execution_workspace_path),
+        "execution_mode": execution_mode,
         "timestamp": datetime.datetime.now().isoformat()
     }
     write_json(run_dir / "request.json", request_data)
@@ -176,7 +196,7 @@ def execute_mock_run(agent_name: str, task_path: Path, workspace_path: Path, roo
         # Execute safe local python subprocess
         runner = MockSubprocessRunner()
         # default timeout: 5 seconds for smoke testing
-        res = runner.run(task_path, workspace_path, timeout_seconds=5)
+        res = runner.run(task_path, execution_workspace_path, timeout_seconds=5)
         
         status_val = normalize_report_status(res.status)
         if status_val == "completed":
@@ -205,7 +225,7 @@ def execute_mock_run(agent_name: str, task_path: Path, workspace_path: Path, roo
         else:
             adapter_config = load_cli_adapter_config(configs.get("runners", {}), adapter_id)
         runner = CliAdapterRunner(adapter_id=adapter_id, config=adapter_config)
-        res = runner.run(task_path, workspace_path, timeout_seconds=int(adapter_config.timeout_ms / 1000))
+        res = runner.run(task_path, execution_workspace_path, timeout_seconds=int(adapter_config.timeout_ms / 1000))
 
         status_val = normalize_report_status(res.status)
         verdict_val = "NEEDS_DECISION" if status_val == "completed" else "BLOCKED"
@@ -261,6 +281,14 @@ def execute_mock_run(agent_name: str, task_path: Path, workspace_path: Path, roo
         open_questions_list = ["When will the integrated runner be enabled for production workflows?"]
         next_action_val = "Configure the agent to use a supported runner or implement the corresponding runner adapter."
         confidence_val = 0.0
+
+    if worktree_info is not None:
+        try:
+            files_changed_val = collect_worktree_changed_files(worktree_info)
+            export_worktree_patch(worktree_info, run_dir / "patch.diff")
+        finally:
+            if not _keep_worktree_enabled():
+                remove_isolated_worktree(worktree_info, force=True)
 
     report = DecisionReport(
         run_id=run_id,
@@ -322,6 +350,8 @@ def execute_mock_run(agent_name: str, task_path: Path, workspace_path: Path, roo
 - Role: {report.role}
 - Task: {task_path}
 - Workspace: {workspace_path}
+- Execution Workspace: {execution_workspace_path}
+- Execution Mode: {execution_mode}
 - Status: {report.status}
 
 ## Objective
@@ -355,6 +385,8 @@ Verify that the `agent-bridge run` CLI life cycle successfully executes, perform
         "model": report.model,
         "task_type": report.role,
         "workspace": str(workspace_path),
+        "execution_workspace": str(execution_workspace_path),
+        "execution_mode": execution_mode,
         "files_inspected": len(files_inspected_val),
         "files_changed": len(files_changed_val),
         "lines_added": 0,
@@ -375,10 +407,13 @@ Verify that the `agent-bridge run` CLI life cycle successfully executes, perform
     write_json(run_dir / "metrics.json", metrics_data)
     
     # 9. Create touched_files.json
-    write_json(run_dir / "touched_files.json", [])
+    write_json(run_dir / "touched_files.json", files_changed_val)
     
     # 10. Create diffstat.txt
-    write_text(run_dir / "diffstat.txt", "0 files changed, 0 insertions(+), 0 deletions(-)\n")
+    if execution_mode == "worktree_patch":
+        write_text(run_dir / "diffstat.txt", f"{len(files_changed_val)} files changed (worktree patch exported)\n")
+    else:
+        write_text(run_dir / "diffstat.txt", "0 files changed, 0 insertions(+), 0 deletions(-)\n")
     
     # 11. Create tests.md
     cmd_list_str = "\n".join(f"- {cmd}" for cmd in commands_run_val) if commands_run_val else "No commands executed."
@@ -441,3 +476,22 @@ def _compact_text(text: str, limit: int = 1800) -> str:
     if len(normalized) <= limit:
         return normalized
     return normalized[:limit].rstrip() + "..."
+
+
+def _load_optional_task_spec(task_path: Path) -> dict[str, Any] | None:
+    spec_path = task_path.with_suffix(".toml")
+    if not spec_path.exists():
+        return None
+    spec = load_task_spec(spec_path)
+    validate_task_spec(spec)
+    return spec
+
+
+def _task_execution_mode(spec: dict[str, Any] | None) -> str:
+    if spec is None:
+        return DEFAULT_EXECUTION_MODE
+    return str(spec.get("execution_mode", DEFAULT_EXECUTION_MODE)).strip() or DEFAULT_EXECUTION_MODE
+
+
+def _keep_worktree_enabled() -> bool:
+    return os.environ.get("AGENT_BRIDGE_KEEP_WORKTREE", "").strip().lower() in {"1", "true", "yes"}

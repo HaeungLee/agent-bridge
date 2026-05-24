@@ -217,4 +217,32 @@ worktree.json
 
 The gate validates that `worktree.json` is parseable, uses `schema_version = "worktree.v0"`, and matches the run directory ID. It also parses changed paths from `patch.diff` and checks them against `write_scope` and `forbidden_files`.
 
-This is still a gate foundation only. Worktree lifecycle orchestration is not wired into `agent-bridge run` yet, and patches are not automatically applied.
+At Phase 5-D this was still a gate foundation only: worktree lifecycle orchestration was not wired into `agent-bridge run`, and patches were not automatically applied.
+
+## Phase 5-E Run Orchestration Foundation
+
+`agent-bridge run` now detects a sibling task spec next to the rendered task prompt:
+
+```text
+.agent/tasks/example.md
+.agent/tasks/example.toml
+```
+
+When the task spec declares:
+
+```toml
+execution_mode = "worktree_patch"
+```
+
+the run lifecycle creates an isolated git worktree before invoking the configured runner. The runner receives the isolated worktree path as its workspace, not the active commander workspace.
+
+After runner execution, the lifecycle exports:
+
+```text
+.agent/runs/<run_id>/worktree.json
+.agent/runs/<run_id>/patch.diff
+```
+
+The worktree is removed by default after patch export. Set `AGENT_BRIDGE_KEEP_WORKTREE=1` to keep the temporary worktree for debugging.
+
+Patches are still not applied automatically. The commander must run the task gate, inspect the patch, and decide whether to apply it.

@@ -212,6 +212,8 @@ The dedicated patch check can also be run directly:
 agent-bridge task check-patch --spec <spec.toml> --run <run_id_or_latest>
 ```
 
+When `agent-bridge run` receives a rendered task prompt with a sibling `.toml` task spec and that spec uses `execution_mode = "worktree_patch"`, the runner is executed inside an isolated git worktree. The active commander workspace is not used as the runner workspace. The run exports `patch.diff` and `worktree.json` as commander-reviewed artifacts; patches are not applied automatically.
+
 ## 7. Rendered Prompt
 
 The rendered Markdown prompt should be deterministic and boring. It is an execution contract, not a motivational document.
