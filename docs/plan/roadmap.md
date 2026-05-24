@@ -35,6 +35,7 @@ Codex commander
 - Subagents must not edit the commander's active workspace by default.
 - Write-capable subagents must run in isolated worktrees and export patches for review.
 - Patches are never auto-applied.
+- Subordinate runs may separate execution workspace from persistent artifact root with `--artifact-root` or `AGENT_BRIDGE_ARTIFACT_ROOT`.
 
 ## Completed Foundation
 
@@ -105,6 +106,7 @@ Claude Code proxy: promising route for nanoGPT models missing from OpenCode regi
 - [x] Run exports `patch.diff` and `worktree.json`.
 - [x] Worktree cleanup by default, with `AGENT_BRIDGE_KEEP_WORKTREE=1` for debugging.
 - [x] Mock-run verification that gate passes and cleanup occurs.
+- [x] Persistent artifact root can be separated from execution workspace.
 
 ## Phase 5 Closure Checklist
 
@@ -131,11 +133,12 @@ Phase 5 is not closed until the following are done or explicitly deferred.
 - [x] Add daily process rollup generator.
 - [x] Add process file line-count rollover near 800 lines.
 - [x] Add milestone grouping to process rollups.
-- [ ] Add compact benchmark matrix task for:
+- [x] Add compact benchmark matrix task and active-workspace artifact run for:
   - OpenCode Kimi
   - OpenCode DeepSeek Flash Free
   - Antigravity XML
   - Claude proxy DeepSeek v4 Flash
+- [ ] Extend compact benchmark matrix to:
   - Claude proxy DeepSeek v4 Pro
   - Claude proxy Mimo v2.5 Pro if callable
 

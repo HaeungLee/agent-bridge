@@ -4,7 +4,7 @@ import os
 import tempfile
 from pathlib import Path
 from agent_bridge.config import find_project_root, load_all_configs
-from agent_bridge.runs import setup_agent_directories
+from agent_bridge.runs import resolve_artifact_root, setup_agent_directories
 
 def cmd_process_rollup(args):
     """
@@ -160,16 +160,19 @@ def cmd_run(args):
     agent_name = args.agent
     task_path = Path(args.task)
     workspace_path = Path(args.workspace)
+    artifact_root_path = Path(args.artifact_root) if args.artifact_root else None
     
     print(f"[*] Starting run delegation lifecycle (Mock Stage)...")
     print(f"    - Agent: {agent_name}")
     print(f"    - Task: {task_path}")
     print(f"    - Workspace: {workspace_path}")
+    if artifact_root_path is not None:
+        print(f"    - Artifact Root: {artifact_root_path}")
     
     try:
-        run_id = execute_mock_run(agent_name, task_path, workspace_path)
+        run_id = execute_mock_run(agent_name, task_path, workspace_path, artifact_root_path=artifact_root_path)
         print(f"[OK] Run '{run_id}' completed (Mock / Blocked status).")
-        print(f"     Artifacts generated under .agent/runs/{run_id}/")
+        print(f"     Artifacts generated under {resolve_artifact_root(find_project_root(), artifact_root_path) / '.agent' / 'runs' / run_id}/")
         sys.exit(0)
     except Exception as e:
         print(f"[FAIL] Run failed: {e}", file=sys.stderr)
@@ -924,6 +927,7 @@ def main():
     parser_run.add_argument("--agent", required=True, help="Agent identifier (e.g. glm_review)")
     parser_run.add_argument("--task", required=True, help="Path to the task file (.md)")
     parser_run.add_argument("--workspace", required=True, help="Path to the target workspace")
+    parser_run.add_argument("--artifact-root", help="Project root where .agent/runs artifacts should be written")
     
     # 3. summarize
     parser_sum = subparsers.add_parser("summarize", help="Summarize agent run output")

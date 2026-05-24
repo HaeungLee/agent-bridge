@@ -20,6 +20,7 @@ from agent_bridge.worktrees import (
 )
 
 COMPLETED_MARKER = "completed.marker"
+ARTIFACT_ROOT_ENV = "AGENT_BRIDGE_ARTIFACT_ROOT"
 DECISION_REPORT_STATUS_MAP = {
     "completed": "completed",
     "failed": "failed",
@@ -79,7 +80,25 @@ def normalize_report_status(runner_status: str) -> str:
     """
     return DECISION_REPORT_STATUS_MAP.get(runner_status, "failed")
 
-def create_run_directory(run_id: str, root_path: Optional[Path] = None) -> Path:
+def resolve_artifact_root(root_path: Path, explicit_artifact_root: Optional[Path | str] = None) -> Path:
+    """
+    Resolves the repository root used for persistent Agent Bridge artifacts.
+    Defaults to the project root, but can be overridden by an explicit path or
+    AGENT_BRIDGE_ARTIFACT_ROOT when execution happens inside a temporary worktree.
+    """
+    raw_path = explicit_artifact_root
+    if raw_path is None:
+        env_path = os.environ.get(ARTIFACT_ROOT_ENV, "").strip()
+        raw_path = env_path or None
+    if raw_path is None:
+        return root_path
+
+    artifact_root = Path(raw_path).expanduser()
+    if not artifact_root.is_absolute():
+        artifact_root = root_path / artifact_root
+    return artifact_root.resolve()
+
+def create_run_directory(run_id: str, root_path: Optional[Path] = None, artifact_root_path: Optional[Path | str] = None) -> Path:
     """
     Creates a run directory under .agent/runs/<run_id>.
     Also creates a raw/ subdirectory inside.
@@ -87,27 +106,35 @@ def create_run_directory(run_id: str, root_path: Optional[Path] = None) -> Path:
     """
     if root_path is None:
         root_path = find_project_root()
-        
-    runs_dir = root_path / ".agent" / "runs"
+
+    artifact_root = resolve_artifact_root(root_path, artifact_root_path)
+    runs_dir = artifact_root / ".agent" / "runs"
     run_path = runs_dir / run_id
     raw_path = run_path / "raw"
     
     os.makedirs(raw_path, exist_ok=False)
     return run_path
 
-def setup_agent_directories(root_path: Optional[Path] = None) -> None:
+def setup_agent_directories(root_path: Optional[Path] = None, artifact_root_path: Optional[Path | str] = None) -> None:
     """
     Ensures that the basic .agent directory structure exists.
     Directories: tasks, runs, reports, metrics
     """
     if root_path is None:
         root_path = find_project_root()
-        
-    agent_dir = root_path / ".agent"
+
+    artifact_root = resolve_artifact_root(root_path, artifact_root_path)
+    agent_dir = artifact_root / ".agent"
     for subdir in ["tasks", "runs", "reports", "metrics", "sessions"]:
         os.makedirs(agent_dir / subdir, exist_ok=True)
 
-def execute_mock_run(agent_name: str, task_path: Path, workspace_path: Path, root_path: Optional[Path] = None) -> str:
+def execute_mock_run(
+    agent_name: str,
+    task_path: Path,
+    workspace_path: Path,
+    root_path: Optional[Path] = None,
+    artifact_root_path: Optional[Path | str] = None,
+) -> str:
     """
     Executes a mock run lifecycle:
     1. Validates presence of agent in config, task file existence, workspace directory existence, and runs dir writability.
@@ -117,6 +144,8 @@ def execute_mock_run(agent_name: str, task_path: Path, workspace_path: Path, roo
     """
     if root_path is None:
         root_path = find_project_root()
+
+    artifact_root = resolve_artifact_root(root_path, artifact_root_path)
         
     files_inspected_val = []
     files_changed_val = []
@@ -145,7 +174,7 @@ def execute_mock_run(agent_name: str, task_path: Path, workspace_path: Path, roo
         raise ValueError(f"Workspace path '{workspace_path}' is not a directory")
         
     # D. .agent/runs writability
-    runs_dir = root_path / ".agent" / "runs"
+    runs_dir = artifact_root / ".agent" / "runs"
     os.makedirs(runs_dir, exist_ok=True)
     temp_path = None
     try:
@@ -163,7 +192,7 @@ def execute_mock_run(agent_name: str, task_path: Path, workspace_path: Path, roo
     for attempt in range(max_retries):
         try:
             run_id = generate_run_id(agent_name)
-            run_dir = create_run_directory(run_id, root_path)
+            run_dir = create_run_directory(run_id, root_path, artifact_root)
             break
         except FileExistsError as e:
             if attempt == max_retries - 1:
@@ -200,6 +229,7 @@ def execute_mock_run(agent_name: str, task_path: Path, workspace_path: Path, roo
             "task": str(task_path),
             "workspace": str(workspace_path),
             "execution_workspace": str(execution_workspace_path),
+            "artifact_root": str(artifact_root),
             "execution_mode": execution_mode,
             "timestamp": datetime.datetime.now().isoformat()
         }
@@ -336,6 +366,7 @@ def execute_mock_run(agent_name: str, task_path: Path, workspace_path: Path, roo
             "task": str(task_path),
             "workspace": str(workspace_path),
             "execution_workspace": str(execution_workspace_path),
+            "artifact_root": str(artifact_root),
             "execution_mode": execution_mode,
             "timestamp": datetime.datetime.now().isoformat(),
             "orchestration_errors": orchestration_errors,

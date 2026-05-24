@@ -45,6 +45,20 @@ The run directory remains under:
 
 The run directory records worktree metadata and exported patch artifacts. The temporary worktree can be removed after patch export unless `keep=True` is requested for debugging.
 
+For delegated runs launched from a temporary or subordinate worktree, the execution workspace and the persistent artifact root may be separated. The execution workspace is where the runner reads and writes project files. The artifact root is where Agent Bridge writes durable commander-facing run artifacts:
+
+```text
+agent-bridge run --workspace <execution-workspace> --artifact-root <commander-project-root>
+```
+
+The same override is available for automation:
+
+```text
+AGENT_BRIDGE_ARTIFACT_ROOT=<commander-project-root>
+```
+
+When unset, the artifact root defaults to the project root detected by the running process, preserving the original behavior. This explicit artifact-root contract is preferred over copying `.agent/runs/` out of a worktree during teardown because it avoids trusting a later synchronization step and keeps run artifacts durable from the start.
+
 ## Module
 
 Add:
@@ -246,6 +260,20 @@ After runner execution, the lifecycle exports:
 The worktree is removed by default after patch export. Set `AGENT_BRIDGE_KEEP_WORKTREE=1` to keep the temporary worktree for debugging.
 
 Patches are still not applied automatically. The commander must run the task gate, inspect the patch, and decide whether to apply it.
+
+If a subordinate agent invokes Agent Bridge from inside its own temporary worktree, it should pass the commander's artifact root explicitly:
+
+```text
+uv run agent-bridge run --agent <agent> --task <task.md> --workspace . --artifact-root W:\Projects\agent-bridge
+```
+
+The resulting run directory is then written under:
+
+```text
+W:\Projects\agent-bridge\.agent\runs\<run_id>\
+```
+
+while the runner still receives the subordinate worktree as its execution workspace.
 
 ## Failure Artifact Policy
 
