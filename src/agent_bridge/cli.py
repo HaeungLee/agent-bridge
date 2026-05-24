@@ -6,6 +6,25 @@ from pathlib import Path
 from agent_bridge.config import find_project_root, load_all_configs
 from agent_bridge.runs import setup_agent_directories
 
+def cmd_process_rollup(args):
+    """
+    Executes 'agent-bridge process rollup [--date YYYYMMDD]'.
+    """
+    from agent_bridge.process import rollup_daily_runs
+
+    root = find_project_root()
+    try:
+        target = rollup_daily_runs(root, args.date)
+    except Exception as e:
+        print(f"[FAIL] Process rollup failed: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    if target is None:
+        print("[OK] No completed runs found for rollup.")
+    else:
+        print(f"[OK] Process rollup updated: {target}")
+    sys.exit(0)
+
 def cmd_doctor(args):
     """
     Executes 'agent-bridge doctor' diagnostics.
@@ -239,9 +258,153 @@ def cmd_summarize(args):
     print("==================================================")
     sys.exit(0)
 
+def _resolve_compare_run(root: Path, run_arg: str) -> Path:
+    """
+    Resolves a run argument for compare.
+    """
+    from agent_bridge.runs import find_latest_run
+
+    if run_arg == "latest":
+        return find_latest_run(root)
+
+    run_dir = root / ".agent" / "runs" / run_arg
+    if run_dir.exists() and run_dir.is_dir():
+        return run_dir
+    raise FileNotFoundError(f"Run directory for '{run_arg}' does not exist")
+
+def _read_json_dict(path: Path) -> dict:
+    """
+    Reads a JSON object and returns an empty dict for missing or invalid files.
+    """
+    import json
+
+    if not path.exists():
+        return {}
+    try:
+        with path.open("r", encoding="utf-8-sig") as f:
+            data = json.load(f)
+    except Exception:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+def _read_json_list(path: Path) -> list:
+    """
+    Reads a JSON list and returns an empty list for missing or invalid files.
+    """
+    import json
+
+    if not path.exists():
+        return []
+    try:
+        with path.open("r", encoding="utf-8-sig") as f:
+            data = json.load(f)
+    except Exception:
+        return []
+    return data if isinstance(data, list) else []
+
+def _format_compare_seconds(value) -> str:
+    if isinstance(value, (int, float)):
+        return f"{value:.2f}s"
+    return "unknown"
+
+def _format_compare_cost(value) -> str:
+    if isinstance(value, (int, float)):
+        return f"${value:.4f}"
+    return "unknown"
+
+def _short_run_id(run_id: str) -> str:
+    if len(run_id) <= 24:
+        return run_id
+    return f"{run_id[:21]}..."
+
+def _load_compare_row(run_dir: Path) -> dict:
+    report = _read_json_dict(run_dir / "decision_report.json")
+    metrics = _read_json_dict(run_dir / "metrics.json")
+    verdict = _read_json_dict(run_dir / "verdict.json")
+    touched_files = _read_json_list(run_dir / "touched_files.json")
+
+    runtime = metrics.get("runtime_seconds", report.get("runtime_seconds"))
+    cost = metrics.get("estimated_cost_usd", report.get("estimated_cost_usd"))
+    risks = report.get("risks", [])
+    if not isinstance(risks, list):
+        risks = []
+
+    report_verdict = report.get("verdict") or "N/A"
+    verdict_level = verdict.get("acceptance_level")
+    if verdict_level:
+        display_verdict = f"{report_verdict} ({verdict_level})"
+    else:
+        display_verdict = report_verdict
+
+    return {
+        "run_id": run_dir.name,
+        "status": str(report.get("status") or "unknown").upper(),
+        "model": report.get("model") or metrics.get("model") or "unknown",
+        "runner": report.get("runner") or metrics.get("runner") or "unknown",
+        "runtime": _format_compare_seconds(runtime),
+        "cost": _format_compare_cost(cost),
+        "touched_files": touched_files,
+        "final_report": "yes" if (run_dir / "final_report.md").exists() else "no",
+        "risks": [str(risk) for risk in risks],
+        "verdict": str(display_verdict).upper(),
+    }
+
 def cmd_compare(args):
-    print(f"Mock Compare requested: runs={args.runs}")
-    print("Compare functionality is not implemented in Phase 0.")
+    """
+    Executes 'agent-bridge compare --runs runA runB'.
+    """
+    root = find_project_root()
+    try:
+        run_a = _resolve_compare_run(root, args.runs[0])
+        run_b = _resolve_compare_run(root, args.runs[1])
+    except Exception as e:
+        print(f"[FAIL] Error resolving runs: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    row_a = _load_compare_row(run_a)
+    row_b = _load_compare_row(run_b)
+    label_a = f"Run A ({_short_run_id(row_a['run_id'])})"
+    label_b = f"Run B ({_short_run_id(row_b['run_id'])})"
+    rows = [
+        ("Status", row_a["status"], row_b["status"]),
+        ("Model", row_a["model"], row_b["model"]),
+        ("Runner", row_a["runner"], row_b["runner"]),
+        ("Runtime", row_a["runtime"], row_b["runtime"]),
+        ("Cost", row_a["cost"], row_b["cost"]),
+        ("Touched Files", f"{len(row_a['touched_files'])}", f"{len(row_b['touched_files'])}"),
+        ("Final Report", row_a["final_report"], row_b["final_report"]),
+        ("Risks", f"{len(row_a['risks'])}", f"{len(row_b['risks'])}"),
+        ("Verdict", row_a["verdict"], row_b["verdict"]),
+    ]
+
+    print("==================================================")
+    print("Agent Bridge Run Compare")
+    print("==================================================")
+    print(f"{'Metric':<16} | {label_a:<32} | {label_b:<32}")
+    print("-" * 86)
+    for name, value_a, value_b in rows:
+        print(f"{name:<16} | {str(value_a):<32} | {str(value_b):<32}")
+    print("==================================================")
+
+    print("Touched files:")
+    for label, row in (("Run A", row_a), ("Run B", row_b)):
+        files = row["touched_files"]
+        if not files:
+            print(f"  - {label}: none")
+        else:
+            print(f"  - {label}:")
+            for path in files:
+                print(f"    - {path}")
+
+    print("Risks:")
+    for label, row in (("Run A", row_a), ("Run B", row_b)):
+        risks = row["risks"]
+        if not risks:
+            print(f"  - {label}: none")
+        else:
+            print(f"  - {label}:")
+            for risk in risks:
+                print(f"    - {risk}")
     sys.exit(0)
 
 def cmd_eval(args):
@@ -810,6 +973,13 @@ def main():
     parser_task_gate.add_argument("--spec", required=True, help="Path to task_spec.v0 TOML")
     parser_task_gate.add_argument("--run", default="latest", help="Run ID to inspect (default: latest)")
     parser_task_gate.add_argument("--workspace", default=".", help="Workspace path used to normalize tool paths")
+
+    # 7. process
+    parser_process = subparsers.add_parser("process", help="Manage process log rollups")
+    process_subparsers = parser_process.add_subparsers(dest="process_command", help="Process subcommand")
+
+    parser_process_rollup = process_subparsers.add_parser("rollup", help="Append completed run summaries to a daily process log")
+    parser_process_rollup.add_argument("--date", help="Target date in YYYYMMDD format (default: today)")
     
     args = parser.parse_args()
     
@@ -838,6 +1008,12 @@ def main():
             cmd_task_gate(args)
         else:
             parser_task.print_help()
+            sys.exit(0)
+    elif args.command == "process":
+        if args.process_command == "rollup":
+            cmd_process_rollup(args)
+        else:
+            parser_process.print_help()
             sys.exit(0)
     else:
         parser.print_help()

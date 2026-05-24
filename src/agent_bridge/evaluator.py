@@ -133,7 +133,9 @@ def update_model_routing_memory(root_path: Path) -> None:
     # Generate Markdown content
     lines = []
     lines.append("# Model Routing Notes\n")
-    lines.append("This document dynamically aggregates agent/model execution and evaluation results (error categories, score averages, etc.) as a routing memory.\n")
+    lines.append("> Generated file. Do not edit by hand or treat as source of truth.\n")
+    lines.append("This document is regenerated from completed run evaluations under `.agent/runs/`.\n")
+    lines.append("Use `docs/model_observations.md` for commander-curated routing judgment.\n")
     
     for (model, provider, runner), stats in sorted(model_stats.items()):
         lines.append(f"## {model} (via {provider}/{runner})\n")
@@ -164,7 +166,9 @@ def update_model_routing_memory(root_path: Path) -> None:
 def write_empty_routing_md(path: Path) -> None:
     content = (
         "# Model Routing Notes\n\n"
-        "This document dynamically aggregates agent/model execution and evaluation results (error categories, score averages, etc.) as a routing memory.\n\n"
+        "> Generated file. Do not edit by hand or treat as source of truth.\n\n"
+        "This document is regenerated from completed run evaluations under `.agent/runs/`.\n"
+        "Use `docs/model_observations.md` for commander-curated routing judgment.\n\n"
         "(No completed evaluation records found.)\n"
     )
     with open(path, "w", encoding="utf-8") as f:

@@ -4,7 +4,15 @@ Date: 2026-05-24
 
 Purpose: record commander-curated observations from actual Agent Bridge work. This is not a universal model ranking.
 
-Generated routing memory belongs under `.agent/metrics/`. This file is the tracked human-readable routing memory.
+Generated routing memory belongs under `.agent/metrics/` and is intentionally ignored by Git. This file is the tracked human-readable routing memory.
+
+## Routing Memory Boundary
+
+- `.agent/metrics/model_routing.md` is generated from completed run evaluations.
+- `.agent/metrics/model_routing.md` must not be edited by hand.
+- `.agent/metrics/model_routing.md` must not be treated as reliable historical evidence when it conflicts with process logs or commander review.
+- `docs/model_observations.md` is the curated source for commander routing decisions.
+- Process logs under `docs/process/` remain the human audit trail for what actually happened.
 
 ## Operating Principle
 

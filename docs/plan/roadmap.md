@@ -120,17 +120,17 @@ Phase 5 is not closed until the following are done or explicitly deferred.
   - Use `shell=False`.
   - Make base URL, port, and model mapping config-driven.
   - Allow bypass permissions only when the execution workspace is an isolated worktree.
-- [ ] Add `agent-bridge compare --runs runA runB`.
+- [x] Add `agent-bridge compare --runs runA runB`.
   - Compare status, model, runner, runtime, cost, touched files, final report availability, risks, and verdict.
-- [ ] Clarify generated routing memory.
+- [x] Clarify generated routing memory.
   - Keep `.agent/metrics/model_routing.md` generated and ignored.
   - Keep `docs/model_observations.md` curated and tracked.
 
 ### Should Finish
 
-- [ ] Add daily process rollup generator.
-- [ ] Add process file line-count rollover near 800 lines.
-- [ ] Add milestone grouping to process rollups.
+- [x] Add daily process rollup generator.
+- [x] Add process file line-count rollover near 800 lines.
+- [x] Add milestone grouping to process rollups.
 - [ ] Add compact benchmark matrix task for:
   - OpenCode Kimi
   - OpenCode DeepSeek Flash Free

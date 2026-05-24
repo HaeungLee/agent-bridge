@@ -6,6 +6,11 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = []
 
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+]
+
 [project.scripts]
 agent-bridge = "agent_bridge.cli:main"
 

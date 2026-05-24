@@ -35,7 +35,7 @@ ENV/
 # Agent Bridge dynamic data (keep .gitkeep, ignore actual runs)
 .agent/runs/*/
 .agent/reports/*/
-.agent/metrics/*/
+.agent/metrics/*
 .agent/sessions/*
 !.agent/**/.gitkeep
 
