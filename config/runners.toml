@@ -113,26 +113,27 @@ AGENT_BRIDGE_ANTIGRAVITY_FORMAT = "xml"
 AGENT_BRIDGE_ANTIGRAVITY_SESSION_POLICY = "continue_named"
 AGENT_BRIDGE_ANTIGRAVITY_SESSION_NAME = "antigravity_bridge_xml_agent"
 
-[runners.cli_adapter.adapters.opencode_deepseek_flash]
+[runners.cli_adapter.adapters.claude_deepseek_flash_proxy]
 command = "python"
 args = ["-m", "agent_bridge.adapters.claude_adapter"]
 allowlist = ["python", "python.exe"]
 timeout_ms = 300000
 
-[runners.cli_adapter.adapters.opencode_deepseek_flash.env]
+[runners.cli_adapter.adapters.claude_deepseek_flash_proxy.env]
 PYTHONPATH = "src"
 AGENT_BRIDGE_CLAUDE_COMMAND = "claude"
 AGENT_BRIDGE_CLAUDE_TIMEOUT_MS = "300000"
-AGENT_BRIDGE_CLAUDE_SESSION_POLICY = "continue_named"
-AGENT_BRIDGE_CLAUDE_SESSION_NAME = "opencode_deepseek_flash_session"
+AGENT_BRIDGE_CLAUDE_SESSION_POLICY = "new"
+AGENT_BRIDGE_CLAUDE_SESSION_NAME = "claude_deepseek_flash_proxy_session"
 AGENT_BRIDGE_CLAUDE_DIRECT_SMOKE = "false"
 AGENT_BRIDGE_CLAUDE_COMPACT_REPORT = "false"
-AGENT_BRIDGE_CLAUDE_IMPLEMENTATION = "true"
+AGENT_BRIDGE_CLAUDE_IMPLEMENTATION = "false"
+AGENT_BRIDGE_CLAUDE_BYPASS_PERMISSIONS = "false"
 AGENT_BRIDGE_CLAUDE_MAX_BUDGET_USD = ""
 AGENT_BRIDGE_CLAUDE_MODEL = "sonnet"
+AGENT_BRIDGE_CLAUDE_PROXY_HOST = "127.0.0.1"
+AGENT_BRIDGE_CLAUDE_PROXY_PORT = "9001"
+AGENT_BRIDGE_CLAUDE_BASE_URL = "http://127.0.0.1:9001/v1"
 AGENT_BRIDGE_CLAUDE_PROXY_PATH = "C:\\Users\\Harry\\.gemini\\antigravity\\brain\\cb47cd8b-ef94-43e5-a922-e24495014796\\anthropic_proxy.py"
-ANTHROPIC_BASE_URL = "http://localhost:9001/v1"
-ANTHROPIC_API_KEY = "sk-nano-..."
 ANTHROPIC_DEFAULT_SONNET_MODEL = "deepseek/deepseek-v4-flash"
-
-
+AGENT_BRIDGE_CLAUDE_DEFAULT_SONNET_MODEL = "deepseek/deepseek-v4-flash"

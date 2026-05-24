@@ -67,10 +67,10 @@ Use cheaper or already-paid agents for work-token-heavy tasks:
 
 - Observed role: alternative harness for nanoGPT models missing from OpenCode's registry.
 - Strengths observed: read-only smoke succeeded through Claude Code harness and local proxy; promising path for DeepSeek v4 Pro/Flash and Mimo v2.5 Pro.
-- Failures observed: current adapter is experimental; proxy is outside the repository; current Claude adapter used dangerous permission bypass and `shell=True` before hardening.
-- Current status: read-only smoke passed; not approved for write-capable use until hardened.
+- Failures observed: proxy is outside the repository; Windows launcher resolution required explicit handling after moving away from `shell=True`; output can still contain mojibake.
+- Current status: read-only smoke passed through `claude_deepseek_flash_proxy`; adapter now uses `shell=False`, config-driven proxy/model values, and blocks permission bypass unless the workspace is an Agent Bridge isolated worktree.
 - Recommended use: benchmark candidate and future implementation harness after worktree-only safety checks.
-- Guardrail: rename agent to make the Claude/proxy route explicit; require isolated worktree before bypass permissions; make model/base URL/port config-driven.
+- Guardrail: keep the `claude_*_proxy` naming convention; require isolated worktree before bypass permissions; keep proxy path and secrets out of tracked source.
 
 ## Model Availability Notes
 

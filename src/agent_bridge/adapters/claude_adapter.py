@@ -1,8 +1,10 @@
 import json
 import os
+import shutil
 import socket
 import subprocess
 import sys
+import tempfile
 import time
 import uuid
 from pathlib import Path
@@ -85,19 +87,32 @@ def _run_claude(request: dict[str, Any]) -> dict[str, Any]:
     # Load environment variables (command name, paths, etc.)
     cmd_name = os.environ.get("AGENT_BRIDGE_CLAUDE_COMMAND", "claude").strip()
     timeout_ms = int(os.environ.get("AGENT_BRIDGE_CLAUDE_TIMEOUT_MS", "300000"))
-    session_policy = os.environ.get("AGENT_BRIDGE_CLAUDE_SESSION_POLICY", "continue_named").strip() or "continue_named"
-    session_name = os.environ.get("AGENT_BRIDGE_CLAUDE_SESSION_NAME", "opencode_deepseek_flash").strip() or "default"
+    session_policy = os.environ.get("AGENT_BRIDGE_CLAUDE_SESSION_POLICY", "new").strip() or "new"
+    session_name = os.environ.get("AGENT_BRIDGE_CLAUDE_SESSION_NAME", "claude_proxy_session").strip() or "default"
     explicit_session_id = os.environ.get("AGENT_BRIDGE_CLAUDE_SESSION_ID", "").strip()
-    
+
+    proxy_host = os.environ.get("AGENT_BRIDGE_CLAUDE_PROXY_HOST", "127.0.0.1").strip() or "127.0.0.1"
+    proxy_port = int(os.environ.get("AGENT_BRIDGE_CLAUDE_PROXY_PORT", "9001"))
+    proxy_base_url = os.environ.get("AGENT_BRIDGE_CLAUDE_BASE_URL", f"http://{proxy_host}:{proxy_port}/v1").strip()
     proxy_path = os.environ.get("AGENT_BRIDGE_CLAUDE_PROXY_PATH", "").strip()
     max_budget = os.environ.get("AGENT_BRIDGE_CLAUDE_MAX_BUDGET_USD", "").strip()
     model_name = os.environ.get("AGENT_BRIDGE_CLAUDE_MODEL", "").strip()
     if not model_name:
         model_name = os.environ.get("ANTHROPIC_DEFAULT_SONNET_MODEL", "").strip()
-    
+    default_sonnet_model = os.environ.get("AGENT_BRIDGE_CLAUDE_DEFAULT_SONNET_MODEL", "").strip()
+    if not default_sonnet_model:
+        default_sonnet_model = os.environ.get("ANTHROPIC_DEFAULT_SONNET_MODEL", "").strip()
+
+    implementation_mode = _env_truthy("AGENT_BRIDGE_CLAUDE_IMPLEMENTATION")
+    bypass_requested = _env_truthy("AGENT_BRIDGE_CLAUDE_BYPASS_PERMISSIONS") or implementation_mode
+    if bypass_requested and not _is_isolated_worktree(workspace):
+        raise ValueError(
+            "Claude permission bypass is only allowed inside an agent-bridge isolated worktree"
+        )
+
     # 1. Manage proxy daemon lifecycle
     proxy_process = None
-    if not _is_proxy_running(port=9001):
+    if not _is_proxy_running(proxy_host, proxy_port):
         if proxy_path and Path(proxy_path).exists():
             _emit_event(request_id, "progress", f"Spawning local translation proxy: {proxy_path}")
             proxy_process = subprocess.Popen(
@@ -108,7 +123,7 @@ def _run_claude(request: dict[str, Any]) -> dict[str, Any]:
             # Wait for socket bind
             time.sleep(1.0)
         else:
-            _emit_event(request_id, "warning", "Local proxy (9001) not running and AGENT_BRIDGE_CLAUDE_PROXY_PATH not found.")
+            _emit_event(request_id, "warning", f"Local proxy ({proxy_host}:{proxy_port}) not running and AGENT_BRIDGE_CLAUDE_PROXY_PATH not found.")
 
     # 2. Resolve or generate valid UUID session ID (as required by Claude CLI)
     session_id = _resolve_session_id(workspace, session_policy, session_name, explicit_session_id)
@@ -117,18 +132,21 @@ def _run_claude(request: dict[str, Any]) -> dict[str, Any]:
     task_prompt = str(payload.get("task_prompt") or "")
     message = _build_message(task_prompt)
 
-    # 3. Assemble command parameters (bypass permissions completely for automation)
+    # 3. Assemble command parameters. Permission bypass is allowed only in isolated worktrees.
     cmd = [
-        cmd_name,
+        _resolve_command(cmd_name),
         "-p",
         message,
         "--output-format",
         "stream-json",
         "--verbose",
-        "--dangerously-skip-permissions",
-        "--permission-mode",
-        "bypassPermissions",
     ]
+    if bypass_requested:
+        cmd.extend([
+            "--dangerously-skip-permissions",
+            "--permission-mode",
+            "bypassPermissions",
+        ])
     if model_name:
         cmd.extend(["--model", model_name])
     if session_id:
@@ -139,8 +157,8 @@ def _run_claude(request: dict[str, Any]) -> dict[str, Any]:
     # 4. Prepare bypass environment variables
     env = dict(os.environ)
     env["PYTHONPATH"] = "src"
-    env["ANTHROPIC_BASE_URL"] = "http://localhost:9001/v1"
-    
+    env["ANTHROPIC_BASE_URL"] = proxy_base_url
+
     # Load keys from .env if needed
     dotenv = _load_env_file(workspace)
     nano_key = dotenv.get("NANOGPT_API_KEY", "").strip()
@@ -150,7 +168,8 @@ def _run_claude(request: dict[str, Any]) -> dict[str, Any]:
         # Fallback to local process env
         env["ANTHROPIC_API_KEY"] = os.environ.get("NANOGPT_API_KEY", "").strip()
 
-    env["ANTHROPIC_DEFAULT_SONNET_MODEL"] = "deepseek/deepseek-v4-flash"
+    if default_sonnet_model:
+        env["ANTHROPIC_DEFAULT_SONNET_MODEL"] = default_sonnet_model
 
     started = time.time()
     
@@ -162,11 +181,11 @@ def _run_claude(request: dict[str, Any]) -> dict[str, Any]:
     try:
         # 5. Start Claude Code process with streaming pipes (binary mode to avoid cp949 on Windows)
         process = subprocess.Popen(
-            cmd,
+            _prepare_subprocess_command(cmd),
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             env=env,
-            shell=True,
+            shell=False,
             bufsize=0,  # unbuffered binary
         )
         
@@ -249,6 +268,11 @@ def _run_claude(request: dict[str, Any]) -> dict[str, Any]:
             "session_reused": session_reused,
             "session_policy": session_policy,
             "session_name": session_name,
+            "proxy_base_url": proxy_base_url,
+            "model": model_name,
+            "default_sonnet_model": default_sonnet_model,
+            "bypass_permissions": bypass_requested,
+            "isolated_worktree": _is_isolated_worktree(workspace),
         },
         "error": None if ok else {"code": "claude_failed", "message": stderr_str or summary},
     }
@@ -331,6 +355,60 @@ def _first_filesystem_scope(constraints: dict[str, Any]) -> str:
     if isinstance(scope, list) and scope:
         return str(scope[0])
     return ""
+
+
+def _env_truthy(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _resolve_command(command: str) -> str:
+    resolved = shutil.which(command)
+    return resolved or command
+
+
+def _prepare_subprocess_command(cmd: list[str]) -> list[str]:
+    if os.name != "nt":
+        return cmd
+    suffix = Path(cmd[0]).suffix.lower()
+    if suffix in {".cmd", ".bat"}:
+        comspec = os.environ.get("ComSpec", "cmd.exe")
+        return [comspec, "/d", "/s", "/c", *cmd]
+    if suffix == ".ps1":
+        return ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", *cmd]
+    return cmd
+
+
+def _is_isolated_worktree(workspace: Path) -> bool:
+    try:
+        resolved = workspace.resolve()
+    except Exception:
+        return False
+    configured_root = os.environ.get("AGENT_BRIDGE_WORKTREE_ROOT", "").strip()
+    if configured_root:
+        expected_parent = Path(configured_root).expanduser()
+    else:
+        expected_parent = Path(tempfile.gettempdir()) / "agent-bridge-worktrees"
+    try:
+        resolved.relative_to(expected_parent.resolve())
+    except Exception:
+        return False
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(resolved), "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=False,
+            shell=False,
+            timeout=10,
+        )
+    except Exception:
+        return False
+    if result.returncode != 0:
+        return False
+    git_root = result.stdout.decode("utf-8", errors="replace").strip()
+    try:
+        return Path(git_root).resolve() == resolved
+    except Exception:
+        return False
 
 
 def _resolve_session_id(workspace: Path, policy: str, name: str, explicit_session_id: str) -> str:

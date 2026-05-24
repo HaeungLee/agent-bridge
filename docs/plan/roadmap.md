@@ -115,7 +115,7 @@ Phase 5 is not closed until the following are done or explicitly deferred.
 - [x] Harden worktree orchestration failure artifacts.
   - Ensure config/load/provision/export failures still produce useful run artifacts when feasible.
   - Preserve cleanup guarantees.
-- [ ] Harden Claude proxy adapter before write-capable use.
+- [x] Harden Claude proxy adapter before write-capable use.
   - Rename confusing `opencode_deepseek_flash` agent ID to a Claude/proxy-specific ID.
   - Use `shell=False`.
   - Make base URL, port, and model mapping config-driven.

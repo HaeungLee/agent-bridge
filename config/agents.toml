@@ -113,14 +113,22 @@ max_cost_usd = 0.5
 output_contract = "adapter.v0.1"
 adapter_id = "antigravity_xml"
 
-[agents.opencode_deepseek_flash]
+[agents.claude_deepseek_flash_proxy]
 runner = "cli_adapter"
-provider = "opencode"
+provider = "nanogpt_proxy"
 model = "deepseek/deepseek-v4-flash"
-role = "implementation"
+role = "implementation_proxy"
 default_mode = "execute"
 max_cost_usd = 0.0
 output_contract = "adapter.v0.1"
-adapter_id = "opencode_deepseek_flash"
+adapter_id = "claude_deepseek_flash_proxy"
 
-
+[agents.opencode_deepseek_flash]
+runner = "cli_adapter"
+provider = "nanogpt_proxy"
+model = "deepseek/deepseek-v4-flash"
+role = "legacy_alias"
+default_mode = "execute"
+max_cost_usd = 0.0
+output_contract = "adapter.v0.1"
+adapter_id = "claude_deepseek_flash_proxy"
