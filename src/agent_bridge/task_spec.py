@@ -341,6 +341,8 @@ def check_run_patch(spec: dict[str, Any], run_dir: Path) -> PatchCheck:
             changed_files = _extract_patch_changed_files(patch_path.read_text(encoding="utf-8", errors="replace"))
         except Exception as exc:
             patch_errors.append(f"Failed to parse patch.diff: {exc}")
+        if not changed_files:
+            patch_errors.append("patch.diff contains no changed files")
 
     forbidden_matches: list[str] = []
     out_of_scope_files: list[str] = []

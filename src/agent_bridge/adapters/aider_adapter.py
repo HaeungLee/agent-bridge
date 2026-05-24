@@ -3,6 +3,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -76,8 +77,14 @@ def _run_aider(request: dict[str, Any]) -> dict[str, Any]:
     cmd_name = os.environ.get("AGENT_BRIDGE_AIDER_COMMAND", "aider").strip()
     timeout_ms = int(os.environ.get("AGENT_BRIDGE_AIDER_TIMEOUT_MS", "300000"))
     model_name = os.environ.get("AGENT_BRIDGE_AIDER_MODEL", "openai/deepseek/deepseek-v4-pro").strip()
+    session_name = os.environ.get("AGENT_BRIDGE_AIDER_SESSION_NAME", "").strip()
+    restore_chat_history = os.environ.get("AGENT_BRIDGE_AIDER_RESTORE_CHAT_HISTORY", "").strip().lower() in {"1", "true", "yes"}
 
     task_prompt = str(payload.get("task_prompt") or "")
+    history_root = Path(tempfile.gettempdir()) / "agent-bridge-aider"
+    history_root.mkdir(parents=True, exist_ok=True)
+    history_seed = session_name or request_id
+    history_suffix = "".join(c for c in history_seed if c.isalnum() or c in ("-", "_")) or "session"
 
     # 1. Assemble Aider commands for batch mode Execution
     cmd = [
@@ -90,6 +97,12 @@ def _run_aider(request: dict[str, Any]) -> dict[str, Any]:
         "--no-show-model-warnings",
         "--encoding", "utf-8",
         "--map-tokens", "0",
+        "--no-gitignore",
+        "--no-analytics",
+        "--input-history-file", str(history_root / f"{history_suffix}.input.history"),
+        "--chat-history-file", str(history_root / f"{history_suffix}.chat.history.md"),
+        "--llm-history-file", str(history_root / f"{history_suffix}.llm.history.md"),
+        "--restore-chat-history" if restore_chat_history else "--no-restore-chat-history",
         "--message", task_prompt,
     ]
 
@@ -103,6 +116,8 @@ def _run_aider(request: dict[str, Any]) -> dict[str, Any]:
     env["AIDER_SHOW_MODEL_WARNINGS"] = "false"
     env["AIDER_ENCODING"] = "utf-8"
     env["AIDER_MAP_TOKENS"] = "0"
+    env["AIDER_GITIGNORE"] = "false"
+    env["AIDER_ANALYTICS"] = "false"
     
     # Load keys from .env if needed
     dotenv = _load_env_file(workspace)
@@ -187,6 +202,8 @@ def _run_aider(request: dict[str, Any]) -> dict[str, Any]:
             "tokens_out": None,
             "model": model_name,
             "openai_api_base": env["OPENAI_API_BASE"],
+            "session_name": session_name or None,
+            "restore_chat_history": restore_chat_history,
         },
         "error": None if ok else {"code": "aider_failed", "message": stderr_str or summary},
     }
