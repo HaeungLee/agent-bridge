@@ -173,122 +173,174 @@ def execute_mock_run(agent_name: str, task_path: Path, workspace_path: Path, roo
     
     worktree_info: WorktreeInfo | None = None
     execution_workspace_path = workspace_path
-    if execution_mode == "worktree_patch":
-        worktree_info = create_isolated_worktree(workspace_path, run_id)
-        write_worktree_metadata(worktree_info, run_dir / "worktree.json")
-        execution_workspace_path = worktree_info.worktree_path
-
-    # 3. Create request.json
-    request_data = {
-        "agent": agent_name,
-        "task": str(task_path),
-        "workspace": str(workspace_path),
-        "execution_workspace": str(execution_workspace_path),
-        "execution_mode": execution_mode,
-        "timestamp": datetime.datetime.now().isoformat()
-    }
-    write_json(run_dir / "request.json", request_data)
-    
-    # 4. Check runner and execute
     runner_name = agent_info.get("runner", "unknown")
-    
-    if runner_name == "mock_subprocess":
-        # Execute safe local python subprocess
-        runner = MockSubprocessRunner()
-        # default timeout: 5 seconds for smoke testing
-        res = runner.run(task_path, execution_workspace_path, timeout_seconds=5)
-        
-        status_val = normalize_report_status(res.status)
-        if status_val == "completed":
-            verdict_val = "NEEDS_DECISION"
+    status_val = "failed"
+    verdict_val = "BLOCKED"
+    summary_val = "Run did not start."
+    commands_run_val: list[str] = []
+    runtime_sec = 0.0
+    stdout_val = ""
+    stderr_val = ""
+    metadata_val: dict[str, Any] = {}
+    risks_list: list[str] = []
+    open_questions_list: list[str] = []
+    next_action_val = "Review run artifacts and retry after fixing the orchestration failure."
+    confidence_val = 0.0
+    orchestration_errors: list[str] = []
+
+    try:
+        if execution_mode == "worktree_patch":
+            worktree_info = create_isolated_worktree(workspace_path, run_id)
+            write_worktree_metadata(worktree_info, run_dir / "worktree.json")
+            execution_workspace_path = worktree_info.worktree_path
+
+        # 3. Create request.json
+        request_data = {
+            "agent": agent_name,
+            "task": str(task_path),
+            "workspace": str(workspace_path),
+            "execution_workspace": str(execution_workspace_path),
+            "execution_mode": execution_mode,
+            "timestamp": datetime.datetime.now().isoformat()
+        }
+        write_json(run_dir / "request.json", request_data)
+
+        # 4. Check runner and execute
+        if runner_name == "mock_subprocess":
+            # Execute safe local python subprocess
+            runner = MockSubprocessRunner()
+            # default timeout: 5 seconds for smoke testing
+            res = runner.run(task_path, execution_workspace_path, timeout_seconds=5)
+
+            status_val = normalize_report_status(res.status)
+            if status_val == "completed":
+                verdict_val = "NEEDS_DECISION"
+            else:
+                verdict_val = "BLOCKED"
+
+            summary_val = f"Mock subprocess run result: {res.summary}"
+            commands_run_val = res.commands_run
+            runtime_sec = res.runtime_seconds
+            stdout_val = res.stdout
+            stderr_val = res.stderr
+            metadata_val = res.metadata or {}
+
+            risks_list = ["Phase 3: Execution under safe local mock_subprocess. No external coding agent invoked."]
+            if status_val == "timeout":
+                risks_list.append("Subprocess execution timed out before completion.")
+
+            open_questions_list = ["When will Gemini or active coding agents be integrated?"]
+            next_action_val = "Proceed to Phase 4 for router memory or Phase 5 workflow."
+            confidence_val = 0.8 if status_val == "completed" else 0.0
+        elif runner_name == "cli_adapter":
+            adapter_id = agent_info.get("adapter_id", agent_name)
+            if adapter_id == "cli_smoke":
+                adapter_config = make_local_smoke_config()
+            else:
+                adapter_config = load_cli_adapter_config(configs.get("runners", {}), adapter_id)
+            runner = CliAdapterRunner(adapter_id=adapter_id, config=adapter_config)
+            res = runner.run(task_path, execution_workspace_path, timeout_seconds=int(adapter_config.timeout_ms / 1000))
+
+            status_val = normalize_report_status(res.status)
+            verdict_val = "NEEDS_DECISION" if status_val == "completed" else "BLOCKED"
+            summary_val = f"CLI adapter run result: {res.summary}"
+            commands_run_val = res.commands_run
+            runtime_sec = res.runtime_seconds
+            stdout_val = res.stdout
+            stderr_val = res.stderr
+            metadata_val = res.metadata or {}
+            risks_list = ["Phase 5-B: CLI adapter smoke. External CLI may be invoked if configured."]
+            if status_val != "completed":
+                risks_list.append("CLI adapter did not complete successfully.")
+            open_questions_list = ["When should write-capable agent execution be enabled?"]
+            next_action_val = "Review CLI adapter smoke and result scope check before enabling write-capable adapters."
+            confidence_val = 0.7 if status_val == "completed" else 0.0
+
+            xml_data = None
+            final_report = ""
+            adapter_artifacts = metadata_val.get("adapter_artifacts") or []
+            for art in adapter_artifacts:
+                if art.get("kind") == "xml_report_parsed":
+                    try:
+                        xml_data = json.loads(art.get("text", "{}"))
+                    except Exception:
+                        pass
+                if art.get("kind") == "final_report":
+                    final_report = str(art.get("text") or "").strip()
+
+            if xml_data:
+                if xml_data.get("summary"):
+                    summary_val = xml_data["summary"]
+                files_inspected_val = xml_data.get("files_inspected") or []
+                files_changed_val = xml_data.get("files_changed") or []
+                if xml_data.get("risks"):
+                    risks_list = xml_data["risks"]
+                if xml_data.get("open_questions"):
+                    open_questions_list = xml_data["open_questions"]
+                if xml_data.get("next_step"):
+                    next_action_val = xml_data["next_step"]
+            elif final_report:
+                summary_val = _compact_text(final_report)
         else:
+            # Default blocked behavior for non-mock runners
+            status_val = "blocked"
             verdict_val = "BLOCKED"
-            
-        summary_val = f"Mock subprocess run result: {res.summary}"
-        commands_run_val = res.commands_run
-        runtime_sec = res.runtime_seconds
-        stdout_val = res.stdout
-        stderr_val = res.stderr
-        metadata_val = res.metadata or {}
-        
-        risks_list = ["Phase 3: Execution under safe local mock_subprocess. No external coding agent invoked."]
-        if status_val == "timeout":
-            risks_list.append("Subprocess execution timed out before completion.")
-            
-        open_questions_list = ["When will Gemini or active coding agents be integrated?"]
-        next_action_val = "Proceed to Phase 4 for router memory or Phase 5 workflow."
-        confidence_val = 0.8 if status_val == "completed" else 0.0
-    elif runner_name == "cli_adapter":
-        adapter_id = agent_info.get("adapter_id", agent_name)
-        if adapter_id == "cli_smoke":
-            adapter_config = make_local_smoke_config()
-        else:
-            adapter_config = load_cli_adapter_config(configs.get("runners", {}), adapter_id)
-        runner = CliAdapterRunner(adapter_id=adapter_id, config=adapter_config)
-        res = runner.run(task_path, execution_workspace_path, timeout_seconds=int(adapter_config.timeout_ms / 1000))
+            summary_val = "This run is blocked because the agent is configured with a non-mock runner, which is not implemented in this phase."
+            commands_run_val = []
+            runtime_sec = 0.0
+            stdout_val = "This run is blocked: non-mock runner configuration detected.\n"
+            stderr_val = "Subprocess not executed: runner blocked as intended.\n"
+            metadata_val = {}
+            risks_list = ["The selected agent uses a runner that is currently blocked or not integrated in this phase."]
+            open_questions_list = ["When will the integrated runner be enabled for production workflows?"]
+            next_action_val = "Configure the agent to use a supported runner or implement the corresponding runner adapter."
+            confidence_val = 0.0
 
-        status_val = normalize_report_status(res.status)
-        verdict_val = "NEEDS_DECISION" if status_val == "completed" else "BLOCKED"
-        summary_val = f"CLI adapter run result: {res.summary}"
-        commands_run_val = res.commands_run
-        runtime_sec = res.runtime_seconds
-        stdout_val = res.stdout
-        stderr_val = res.stderr
-        metadata_val = res.metadata or {}
-        risks_list = ["Phase 5-B: CLI adapter smoke. External CLI may be invoked if configured."]
-        if status_val != "completed":
-            risks_list.append("CLI adapter did not complete successfully.")
-        open_questions_list = ["When should write-capable agent execution be enabled?"]
-        next_action_val = "Review CLI adapter smoke and result scope check before enabling write-capable adapters."
-        confidence_val = 0.7 if status_val == "completed" else 0.0
-
-        xml_data = None
-        final_report = ""
-        adapter_artifacts = metadata_val.get("adapter_artifacts") or []
-        for art in adapter_artifacts:
-            if art.get("kind") == "xml_report_parsed":
-                try:
-                    xml_data = json.loads(art.get("text", "{}"))
-                except Exception:
-                    pass
-            if art.get("kind") == "final_report":
-                final_report = str(art.get("text") or "").strip()
-
-        if xml_data:
-            if xml_data.get("summary"):
-                summary_val = xml_data["summary"]
-            files_inspected_val = xml_data.get("files_inspected") or []
-            files_changed_val = xml_data.get("files_changed") or []
-            if xml_data.get("risks"):
-                risks_list = xml_data["risks"]
-            if xml_data.get("open_questions"):
-                open_questions_list = xml_data["open_questions"]
-            if xml_data.get("next_step"):
-                next_action_val = xml_data["next_step"]
-        elif final_report:
-            summary_val = _compact_text(final_report)
-    else:
-        # Default blocked behavior for non-mock runners
-        status_val = "blocked"
-        verdict_val = "BLOCKED"
-        summary_val = "This run is blocked because the agent is configured with a non-mock runner, which is not implemented in this phase."
-        commands_run_val = []
-        runtime_sec = 0.0
-        stdout_val = "This run is blocked: non-mock runner configuration detected.\n"
-        stderr_val = "Subprocess not executed: runner blocked as intended.\n"
-        metadata_val = {}
-        risks_list = ["The selected agent uses a runner that is currently blocked or not integrated in this phase."]
-        open_questions_list = ["When will the integrated runner be enabled for production workflows?"]
-        next_action_val = "Configure the agent to use a supported runner or implement the corresponding runner adapter."
-        confidence_val = 0.0
-
-    if worktree_info is not None:
-        try:
+        if worktree_info is not None:
             files_changed_val = collect_worktree_changed_files(worktree_info)
             export_worktree_patch(worktree_info, run_dir / "patch.diff")
-        finally:
-            if not _keep_worktree_enabled():
+    except Exception as exc:
+        orchestration_errors.append(f"{type(exc).__name__}: {exc}")
+        status_val = "failed"
+        verdict_val = "BLOCKED"
+        summary_val = f"Run orchestration failed: {exc}"
+        stderr_val = f"{stderr_val}\nRun orchestration failed: {type(exc).__name__}: {exc}\n".lstrip()
+        risks_list = ["Run orchestration failed before normal artifact completion."]
+        if execution_mode == "worktree_patch":
+            risks_list.append("Worktree patch artifacts may be missing or incomplete.")
+        open_questions_list = ["Inspect raw/stderr.txt and orchestration_errors.json before retrying."]
+        next_action_val = "Fix the orchestration failure, then rerun the task."
+        confidence_val = 0.0
+    finally:
+        if worktree_info is not None and not _keep_worktree_enabled():
+            try:
                 remove_isolated_worktree(worktree_info, force=True)
+            except Exception as cleanup_exc:
+                orchestration_errors.append(f"cleanup {type(cleanup_exc).__name__}: {cleanup_exc}")
+
+    if orchestration_errors:
+        write_json(run_dir / "orchestration_errors.json", orchestration_errors)
+        if status_val == "completed":
+            status_val = "failed"
+            verdict_val = "BLOCKED"
+            summary_val = "Run completed, but orchestration cleanup or artifact export failed."
+            risks_list.append("Run orchestration reported errors after runner execution.")
+            open_questions_list.append("Inspect orchestration_errors.json before trusting this run.")
+            next_action_val = "Fix the orchestration error, then rerun the task."
+            confidence_val = 0.0
+
+    request_path = run_dir / "request.json"
+    if not request_path.exists():
+        request_data = {
+            "agent": agent_name,
+            "task": str(task_path),
+            "workspace": str(workspace_path),
+            "execution_workspace": str(execution_workspace_path),
+            "execution_mode": execution_mode,
+            "timestamp": datetime.datetime.now().isoformat(),
+            "orchestration_errors": orchestration_errors,
+        }
+        write_json(request_path, request_data)
 
     report = DecisionReport(
         run_id=run_id,
@@ -401,6 +453,7 @@ Verify that the `agent-bridge run` CLI life cycle successfully executes, perform
         "session_reused": metadata_val.get("session_reused"),
         "session_policy": metadata_val.get("session_policy"),
         "session_name": metadata_val.get("session_name"),
+        "orchestration_errors": len(orchestration_errors),
         "commander_verdict": None,
         "user_verdict": None
     }

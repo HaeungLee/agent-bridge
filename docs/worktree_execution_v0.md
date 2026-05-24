@@ -246,3 +246,32 @@ After runner execution, the lifecycle exports:
 The worktree is removed by default after patch export. Set `AGENT_BRIDGE_KEEP_WORKTREE=1` to keep the temporary worktree for debugging.
 
 Patches are still not applied automatically. The commander must run the task gate, inspect the patch, and decide whether to apply it.
+
+## Failure Artifact Policy
+
+If worktree orchestration fails after a run directory has been created, Agent Bridge should still write commander-readable artifacts whenever feasible:
+
+```text
+decision_report.json
+summary.md
+process.md
+metrics.json
+touched_files.json
+diffstat.txt
+tests.md
+risks.md
+raw/stdout.txt
+raw/stderr.txt
+completed.marker
+orchestration_errors.json
+```
+
+Typical failures include:
+
+- workspace is not a git repository
+- worktree creation fails
+- runner configuration fails after run directory creation
+- patch export fails
+- worktree cleanup fails
+
+If cleanup fails after runner execution, the run is treated as failed because isolated write-capable execution cannot be trusted until the leftover workspace is inspected or removed.
