@@ -132,3 +132,23 @@ default_mode = "execute"
 max_cost_usd = 0.0
 output_contract = "adapter.v0.1"
 adapter_id = "claude_deepseek_flash_proxy"
+
+[agents.aider_deepseek_pro]
+runner = "cli_adapter"
+provider = "nanogpt"
+model = "openai/deepseek/deepseek-v4-pro"
+role = "implementation"
+default_mode = "execute"
+max_cost_usd = 2.0
+output_contract = "adapter.v0.1"
+adapter_id = "aider_nanogpt"
+
+[agents.aider_mimo_pro]
+runner = "cli_adapter"
+provider = "nanogpt"
+model = "openai/xiaomi/mimo-v2.5-pro"
+role = "implementation"
+default_mode = "execute"
+max_cost_usd = 2.0
+output_contract = "adapter.v0.1"
+adapter_id = "aider_nanogpt_mimo"

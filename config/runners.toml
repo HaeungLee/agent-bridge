@@ -137,3 +137,27 @@ AGENT_BRIDGE_CLAUDE_BASE_URL = "http://127.0.0.1:9001/v1"
 AGENT_BRIDGE_CLAUDE_PROXY_PATH = "C:\\Users\\Harry\\.gemini\\antigravity\\brain\\cb47cd8b-ef94-43e5-a922-e24495014796\\anthropic_proxy.py"
 ANTHROPIC_DEFAULT_SONNET_MODEL = "deepseek/deepseek-v4-flash"
 AGENT_BRIDGE_CLAUDE_DEFAULT_SONNET_MODEL = "deepseek/deepseek-v4-flash"
+
+[runners.cli_adapter.adapters.aider_nanogpt]
+command = "python"
+args = ["-m", "agent_bridge.adapters.aider_adapter"]
+allowlist = ["python", "python.exe"]
+timeout_ms = 300000
+
+[runners.cli_adapter.adapters.aider_nanogpt.env]
+PYTHONPATH = "src"
+AGENT_BRIDGE_AIDER_COMMAND = "aider"
+AGENT_BRIDGE_AIDER_TIMEOUT_MS = "300000"
+AGENT_BRIDGE_AIDER_MODEL = "openai/deepseek/deepseek-v4-pro"
+
+[runners.cli_adapter.adapters.aider_nanogpt_mimo]
+command = "python"
+args = ["-m", "agent_bridge.adapters.aider_adapter"]
+allowlist = ["python", "python.exe"]
+timeout_ms = 300000
+
+[runners.cli_adapter.adapters.aider_nanogpt_mimo.env]
+PYTHONPATH = "src"
+AGENT_BRIDGE_AIDER_COMMAND = "aider"
+AGENT_BRIDGE_AIDER_TIMEOUT_MS = "300000"
+AGENT_BRIDGE_AIDER_MODEL = "openai/xiaomi/mimo-v2.5-pro"
