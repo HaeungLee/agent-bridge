@@ -11,6 +11,7 @@ Generated routing memory belongs under `.agent/metrics/` and is intentionally ig
 - `.agent/metrics/model_routing.md` is generated from completed run evaluations.
 - `.agent/metrics/model_routing.md` must not be edited by hand.
 - `.agent/metrics/model_routing.md` must not be treated as reliable historical evidence when it conflicts with process logs or commander review.
+- `docs/benchmarks/model_benchmarks.jsonl` is tracked commander-curated benchmark evidence.
 - `docs/model_observations.md` is the curated source for commander routing decisions.
 - Process logs under `docs/process/` remain the human audit trail for what actually happened.
 
@@ -105,6 +106,25 @@ Claude proxy hypothesis:
 - Needs smoke matrix before routing decisions.
 
 ## Current Routing Plan
+
+### Current Task-Class Candidates
+
+Based on commander-curated benchmark evidence in `docs/benchmarks/model_benchmarks.jsonl`:
+
+- `readonly_report`
+  - Primary candidate: `opencode_kimi_report`.
+  - Fallback/observation: `opencode_deepseek_flash_free`.
+  - Special quota path: `antigravity_xml`, but only with strict read-only mutation checks.
+- `worktree_patch`
+  - Primary cheap candidate: `aider_deepseek_flash`.
+  - Secondary candidate: `aider_mimo_pro` for fresh isolated worktree tasks.
+  - Observation candidate: `aider_deepseek_pro`, correct but not clearly better than Flash on the current small benchmark.
+  - Secondary fallback: `aider_glm51`, correct but slower and more verbose in the current small benchmark.
+- `worktree_patch_continue`
+  - Current candidate: `aider_deepseek_flash`.
+  - Avoid for now: restored-history `aider_mimo_pro`, because the pilot returned code in the report without modifying the isolated worktree.
+- `deep_review_or_investigation`
+  - Observation candidate: `claude_deepseek_flash_proxy`, but current proxy overhead makes it unsuitable for routine tasks.
 
 ### Commander-Owned
 
