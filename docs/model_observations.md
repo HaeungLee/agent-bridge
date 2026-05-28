@@ -116,10 +116,16 @@ Based on commander-curated benchmark evidence in `docs/benchmarks/model_benchmar
   - Fallback/observation: `opencode_deepseek_flash_free`.
   - Special quota path: `antigravity_xml`, but only with strict read-only mutation checks.
 - `worktree_patch`
-  - Primary cheap candidate: `aider_deepseek_flash`.
-  - Secondary candidate: `aider_mimo_pro` for fresh isolated worktree tasks.
+  - Primary candidate for new-file/simple fixture creation: `aider_deepseek_flash`.
+  - Primary candidate for existing-function edits and small test additions: `opencode_kimi_impl`.
+  - Secondary candidate for fresh isolated new-file tasks: `aider_mimo_pro`.
   - Observation candidate: `aider_deepseek_pro`, correct but not clearly better than Flash on the current small benchmark.
   - Secondary fallback: `aider_glm51`, correct but slower and more verbose in the current small benchmark.
+  - Avoid for now: Aider direct routes for existing-file edits until the adapter passes explicit files to Aider or otherwise forces real edits; both DeepSeek Flash and Mimo returned report/code text without modifying `src/agent_bridge/benchmarks.py` in the existing-function edit sample.
+- `worktree_patch_test_addition`
+  - Current candidate: `opencode_kimi_impl`; its patch passed isolated pytest verification.
+  - Avoid for now: `aider_mimo_pro` for this task class because the sample produced no patch.
+  - Caution: `aider_deepseek_flash` produced a patch and passed the current gate, but isolated pytest failed on Windows path semantics.
 - `worktree_patch_continue`
   - Current candidate: `aider_deepseek_flash`.
   - Avoid for now: restored-history `aider_mimo_pro`, because the pilot returned code in the report without modifying the isolated worktree.

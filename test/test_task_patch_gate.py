@@ -1,6 +1,6 @@
 import json
 
-from agent_bridge.task_spec import check_run_patch
+from agent_bridge.task_spec import check_run_patch, check_run_tool_use
 
 
 def _spec() -> dict:
@@ -34,6 +34,36 @@ def _write_worktree_metadata(run_dir):
                 "worktree_path": "worktree",
                 "base_ref": "HEAD",
                 "base_sha": "abc123",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def _write_tool_use_stdout(run_dir, tool, paths):
+    raw_dir = run_dir / "raw"
+    raw_dir.mkdir(parents=True)
+    (raw_dir / "stdout.txt").write_text(
+        json.dumps(
+            {
+                "contract": "adapter.v0.1",
+                "type": "response",
+                "request_id": "test",
+                "ok": True,
+                "data": {
+                    "artifacts": [
+                        {
+                            "kind": "tool_use_summary",
+                            "items": [
+                                {
+                                    "tool": tool,
+                                    "status": "completed",
+                                    "paths": [str(path) for path in paths],
+                                }
+                            ],
+                        }
+                    ]
+                },
             }
         ),
         encoding="utf-8",
@@ -76,3 +106,62 @@ def test_worktree_patch_accepts_changed_file_in_scope(tmp_path):
 
     assert result.passed
     assert result.changed_files == ["scratch/example.py"]
+
+
+def test_worktree_tool_use_normalizes_absolute_worktree_paths(tmp_path):
+    commander_workspace = tmp_path / "commander"
+    worktree = tmp_path / "isolated-worktree"
+    run_dir = tmp_path / "20260524-000002-tool-use"
+    commander_workspace.mkdir()
+    (worktree / "scratch").mkdir(parents=True)
+    run_dir.mkdir()
+    (run_dir / "worktree.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "worktree.v0",
+                "run_id": run_dir.name,
+                "repo_root": str(commander_workspace),
+                "worktree_path": str(worktree),
+                "base_ref": "HEAD",
+                "base_sha": "abc123",
+            }
+        ),
+        encoding="utf-8",
+    )
+    _write_tool_use_stdout(run_dir, "edit", [worktree / "scratch" / "example.py"])
+
+    result = check_run_tool_use(_spec(), run_dir, commander_workspace)
+
+    assert result.passed
+    assert result.outside_workspace_paths == []
+
+
+def test_worktree_tool_use_rejects_absolute_paths_outside_worktree(tmp_path):
+    commander_workspace = tmp_path / "commander"
+    worktree = tmp_path / "isolated-worktree"
+    outside = tmp_path / "outside"
+    run_dir = tmp_path / "20260524-000003-tool-use-outside"
+    commander_workspace.mkdir()
+    worktree.mkdir()
+    outside.mkdir()
+    run_dir.mkdir()
+    (run_dir / "worktree.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "worktree.v0",
+                "run_id": run_dir.name,
+                "repo_root": str(commander_workspace),
+                "worktree_path": str(worktree),
+                "base_ref": "HEAD",
+                "base_sha": "abc123",
+            }
+        ),
+        encoding="utf-8",
+    )
+    outside_path = outside / "scratch" / "example.py"
+    _write_tool_use_stdout(run_dir, "edit", [outside_path])
+
+    result = check_run_tool_use(_spec(), run_dir, commander_workspace)
+
+    assert not result.passed
+    assert result.outside_workspace_paths == [str(outside_path)]

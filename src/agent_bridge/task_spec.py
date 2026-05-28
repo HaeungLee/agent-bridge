@@ -270,7 +270,7 @@ def check_task_result(spec: dict[str, Any], workspace_path: Path) -> ResultCheck
 def check_run_tool_use(spec: dict[str, Any], run_dir: Path, workspace_path: Path) -> ToolUseCheck:
     validation = validate_task_spec(spec)
     spec = validation.spec
-    workspace = workspace_path.resolve()
+    workspace = _tool_use_workspace(spec, run_dir, workspace_path)
     raw_stdout_path = run_dir / "raw" / "stdout.txt"
     if not raw_stdout_path.exists():
         raise FileNotFoundError(f"Missing raw stdout artifact: {raw_stdout_path}")
@@ -486,6 +486,25 @@ def _normalize_tool_path(raw_path: str, workspace: Path) -> str:
     except Exception:
         return ""
     return _normalize_pattern(rel.as_posix())
+
+
+def _tool_use_workspace(spec: dict[str, Any], run_dir: Path, workspace_path: Path) -> Path:
+    fallback = workspace_path.resolve()
+    if _execution_mode(spec) != "worktree_patch":
+        return fallback
+
+    metadata_path = run_dir / "worktree.json"
+    try:
+        data = json.loads(metadata_path.read_text(encoding="utf-8-sig"))
+    except Exception:
+        return fallback
+    if not isinstance(data, dict):
+        return fallback
+
+    worktree_path = data.get("worktree_path")
+    if not isinstance(worktree_path, str) or not worktree_path.strip():
+        return fallback
+    return Path(worktree_path).resolve()
 
 
 def _validate_required_strings(spec: dict[str, Any]) -> None:
