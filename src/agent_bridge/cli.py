@@ -25,6 +25,55 @@ def cmd_process_rollup(args):
         print(f"[OK] Process rollup updated: {target}")
     sys.exit(0)
 
+def cmd_bench_record(args):
+    """
+    Executes 'agent-bridge bench record' to append commander-curated benchmark evidence.
+    """
+    from agent_bridge.benchmarks import (
+        append_benchmark_record,
+        benchmark_path,
+        build_benchmark_record,
+        parse_failure_modes,
+    )
+
+    root = find_project_root()
+    try:
+        record = build_benchmark_record(
+            root=root,
+            run_id=args.run,
+            run_kind=args.kind,
+            evidence_status=args.status,
+            harness=args.harness,
+            gate_status=args.gate,
+            instruction_following=args.instruction,
+            scope_discipline=args.scope,
+            best_use_case=args.best_use,
+            avoid_for=args.avoid,
+            commander_notes=args.notes,
+            failure_modes=parse_failure_modes(args.failures),
+            task_id=args.task_id,
+        )
+        path = benchmark_path(root, args.out)
+        append_benchmark_record(path, record, allow_duplicate=args.allow_duplicate)
+    except Exception as e:
+        print(f"[FAIL] Benchmark record failed: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    print("==================================================")
+    print("Agent Bridge Benchmark Record")
+    print("==================================================")
+    print(f"Run      : {record['run_id']}")
+    print(f"Kind     : {record['run_kind']}")
+    print(f"Status   : {record['evidence_status']}")
+    print(f"Model    : {record['model']}")
+    print(f"Harness  : {record['harness']}")
+    print(f"Runtime  : {record['runtime_seconds']}")
+    print(f"Changed  : {record['changed_files_count']} files")
+    print(f"Output   : {path}")
+    print("==================================================")
+    print("[OK] benchmark evidence appended")
+    sys.exit(0)
+
 def cmd_doctor(args):
     """
     Executes 'agent-bridge doctor' diagnostics.
@@ -984,6 +1033,31 @@ def main():
 
     parser_process_rollup = process_subparsers.add_parser("rollup", help="Append completed run summaries to a daily process log")
     parser_process_rollup.add_argument("--date", help="Target date in YYYYMMDD format (default: today)")
+
+    # 8. bench
+    parser_bench = subparsers.add_parser("bench", help="Manage benchmark evidence")
+    bench_subparsers = parser_bench.add_subparsers(dest="bench_command", help="Benchmark subcommand")
+
+    parser_bench_record = bench_subparsers.add_parser("record", help="Append a benchmark evidence JSONL record from a run")
+    parser_bench_record.add_argument("--run", required=True, help="Run ID to record")
+    parser_bench_record.add_argument("--kind", required=True, help="Task/run kind, such as readonly_report or worktree_patch")
+    parser_bench_record.add_argument(
+        "--status",
+        required=True,
+        choices=["accepted_candidate", "qualified_observation", "rejected_candidate"],
+        help="Evidence status for routing",
+    )
+    parser_bench_record.add_argument("--harness", required=True, help="Harness name, such as aider or opencode")
+    parser_bench_record.add_argument("--gate", required=True, help="Gate status, such as passed, failed, scope_warning, or not_recorded")
+    parser_bench_record.add_argument("--instruction", required=True, help="Instruction-following observation")
+    parser_bench_record.add_argument("--scope", required=True, help="Scope-discipline observation")
+    parser_bench_record.add_argument("--best-use", required=True, help="Best task class/use case")
+    parser_bench_record.add_argument("--avoid", default="", help="Cases to avoid")
+    parser_bench_record.add_argument("--notes", required=True, help="Commander notes")
+    parser_bench_record.add_argument("--failures", default="", help="Comma-separated failure modes")
+    parser_bench_record.add_argument("--task-id", help="Override task_id; defaults to request.json task stem")
+    parser_bench_record.add_argument("--out", help="Output JSONL path; defaults to docs/benchmarks/model_benchmarks.jsonl")
+    parser_bench_record.add_argument("--allow-duplicate", action="store_true", help="Allow duplicate run_id + kind records")
     
     args = parser.parse_args()
     
@@ -1018,6 +1092,12 @@ def main():
             cmd_process_rollup(args)
         else:
             parser_process.print_help()
+            sys.exit(0)
+    elif args.command == "bench":
+        if args.bench_command == "record":
+            cmd_bench_record(args)
+        else:
+            parser_bench.print_help()
             sys.exit(0)
     else:
         parser.print_help()
