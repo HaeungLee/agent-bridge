@@ -79,6 +79,68 @@ Recommended redesign:
 - Add `model_available = true|false|unknown`.
 - Generate routing notes only from accepted evidence classes unless explicitly asked for all runs.
 
+## Benchmark Evidence Recording
+
+Tracked commander-curated benchmark evidence lives at:
+
+- `docs/benchmarks/model_benchmarks.jsonl`
+- `docs/benchmarks/README.md`
+
+Use benchmark evidence to compare harness/model combinations within a task class.
+Do not use it as a global model leaderboard.
+
+After reviewing a completed run and its gates, append evidence with:
+
+```powershell
+uv run agent-bridge bench record `
+  --run 20260524-192821-a39435-aider_deepseek_flash `
+  --kind worktree_patch `
+  --status accepted_candidate `
+  --harness aider `
+  --gate passed `
+  --instruction good `
+  --scope write_scope_only `
+  --best-use "default cheap fast worktree_patch candidate for small scoped changes" `
+  --avoid "large ambiguous refactors until broader evidence exists" `
+  --notes "Fastest correct one-shot patch in the matrix."
+```
+
+The command reads these values from `.agent/runs/<run_id>/`:
+
+- agent
+- runner
+- provider
+- model
+- runtime
+- touched file count
+- final report presence
+- task ID from `request.json`
+
+The commander must still provide judgment fields:
+
+- `--kind`
+- `--status`
+- `--harness`
+- `--gate`
+- `--instruction`
+- `--scope`
+- `--best-use`
+- `--avoid`
+- `--notes`
+- optional `--failures`
+
+Evidence statuses:
+
+- `accepted_candidate`: good enough to route similar task-class work to this harness/model.
+- `qualified_observation`: useful evidence with caveats.
+- `rejected_candidate`: real run that should steer routing away.
+
+Record only useful routing evidence:
+
+- Include real model or real harness calls with persistent normalized artifacts.
+- Exclude mock, placeholder, blocked, lost transient, or no-op implementation runs.
+- If a run is real but flawed, record it as `qualified_observation` or `rejected_candidate` instead of silently dropping it.
+
 ## Current Model Observations
 
 Kimi k2.6 through OpenCode/nanoGPT:
